@@ -2,11 +2,12 @@ import hashlib
 import asyncio
 import io
 import re
+import textwrap
 from typing import Optional, List
 from fastapi import APIRouter, UploadFile, File, Header, HTTPException, Query, BackgroundTasks
 from fastapi.responses import Response
 from pydantic import BaseModel
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from backend.services.supabase_service import db_service
 from backend.services.ai_processor import AIProcessor
@@ -27,41 +28,65 @@ class TagsRequest(BaseModel):
     tags: List[str]
 
 
-def create_minimal_pdf_bytes(title: str, text: str) -> bytes:
-    """Generates a valid 1-page PDF binary stream containing title and summary text as fallback."""
-    clean_title = re.sub(r'[^a-zA-Z0-9_\-\.\s]', '', title)[:40]
-    pdf_str = (
-        "%PDF-1.4\n"
-        "1 0 obj <</Type /Catalog /Pages 2 0 R>> endobj\n"
-        "2 0 obj <</Type /Pages /Kids [3 0 R] /Count 1>> endobj\n"
-        "3 0 obj <</Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources <</Font <</F1 4 0 R>>>> /Contents 5 0 R>> endobj\n"
-        "4 0 obj <</Type /Font /Subtype /Type1 /BaseFont /Helvetica>> endobj\n"
-        "5 0 obj <</Length 150>> stream\n"
-        "BT /F1 18 Tf 50 720 Td (" + clean_title + ") Tj ET\n"
-        "BT /F1 12 Tf 50 680 Td (DocVault Archival Record - Processed Payload) Tj ET\n"
-        "endstream endobj\n"
-        "xref\n0 6\n0000000000 65535 f \n0000000058 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000315 00000 n \ntrailer <</Size 6 /Root 1 0 R>>\nstartxref\n515\n%%EOF"
-    )
-    return pdf_str.encode('latin1', errors='ignore')
+def render_text_to_pdf_bytes(title: str, text: str) -> bytes:
+    """Renders text or markdown notes onto a formatted A4 page canvas using PIL and returns pristine PDF bytes."""
+    width, height = 1240, 1754  # A4 proportion
+    img = Image.new('RGB', (width, height), color=(255, 255, 255))
+    d = ImageDraw.Draw(img)
+
+    try:
+        title_font = ImageFont.truetype("arial.ttf", 32)
+        sub_font = ImageFont.truetype("arial.ttf", 20)
+        body_font = ImageFont.truetype("arial.ttf", 18)
+    except Exception:
+        title_font = ImageFont.load_default()
+        sub_font = ImageFont.load_default()
+        body_font = ImageFont.load_default()
+
+    # Draw Header Line & Title Box
+    d.rectangle([(40, 40), (1200, 120)], fill=(40, 73, 63))
+    clean_title = re.sub(r'[^a-zA-Z0-9_\-\.\s]', '', title)[:45]
+    d.text((60, 60), clean_title, fill=(255, 255, 255), font=title_font)
+
+    d.text((60, 140), "DOCVAULT ARCHIVAL RECORD - LECTURE & STUDY NOTES", fill=(100, 100, 100), font=sub_font)
+    d.line([(60, 175), (1180, 175)], fill=(200, 200, 200), width=2)
+
+    # Wrap & Draw Text Content
+    lines = text.split('\n')
+    y = 200
+    for line in lines:
+        if y > 1650:
+            break
+        wrapped = textwrap.wrap(line, width=90)
+        if not wrapped:
+            y += 20
+            continue
+        for w_line in wrapped:
+            if y > 1650:
+                break
+            d.text((60, y), w_line, fill=(30, 30, 30), font=body_font)
+            y += 26
+
+    pdf_buf = io.BytesIO()
+    img.save(pdf_buf, format="PDF")
+    return pdf_buf.getvalue()
 
 
-def ensure_valid_pdf_or_image_bytes(file_bytes: bytes, filename: str) -> (bytes, str):
+def ensure_valid_pdf_or_image_bytes(file_bytes: bytes, filename: str, doc_summary: str = "") -> (bytes, str):
     """
     Guarantees that the returned binary stream is 100% valid for browser PDF viewers and image readers:
     1. If file_bytes starts with b'%PDF', returns file_bytes directly with media_type application/pdf.
-    2. If filename ends with .pdf but file_bytes contains JPEG/PNG/WebP image data, wraps/converts the image into a pristine %PDF-1.4 stream so browser PDF plugins render it seamlessly without 'Failed to load PDF document' errors.
-    3. If filename ends with image extension (.jpg, .png), returns image bytes with image/jpeg or image/png media_type.
+    2. If file_bytes is JPEG/PNG/WebP image data, wraps/converts the image into a pristine %PDF-1.4 stream using PIL.
+    3. If file_bytes is text/markdown or empty, renders the text/summary into a formatted A4 PDF page.
     """
-    if not file_bytes or len(file_bytes) < 10:
-        return create_minimal_pdf_bytes(filename, "DocVault Archival Payload"), "application/pdf"
-
-    if file_bytes.startswith(b'%PDF'):
+    if file_bytes and file_bytes.startswith(b'%PDF'):
         return file_bytes, "application/pdf"
 
     fn_lower = filename.lower()
     is_pdf_requested = fn_lower.endswith('.pdf') or not any(fn_lower.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp'])
 
-    if is_pdf_requested:
+    if file_bytes and len(file_bytes) > 10:
+        # Check if file_bytes is a valid image (JPEG/PNG/WebP)
         try:
             img = Image.open(io.BytesIO(file_bytes))
             if img.mode not in ("RGB", "L"):
@@ -72,18 +97,21 @@ def ensure_valid_pdf_or_image_bytes(file_bytes: bytes, filename: str) -> (bytes,
             converted_pdf_bytes = pdf_buffer.getvalue()
             print(f"[DocumentFile] Converted image ({len(file_bytes)} bytes) to pristine PDF stream ({len(converted_pdf_bytes)} bytes) for '{filename}'.")
             return converted_pdf_bytes, "application/pdf"
-        except Exception as e:
-            print(f"[DocumentFile] Image-to-PDF conversion note: {e}")
-            return create_minimal_pdf_bytes(filename, "DocVault Archival Payload"), "application/pdf"
+        except Exception:
+            # If not an image, attempt decoding as text / markdown notes
+            try:
+                decoded_text = file_bytes.decode('utf-8', errors='ignore')
+                if len(decoded_text.strip()) > 10:
+                    rendered_pdf = render_text_to_pdf_bytes(filename, decoded_text)
+                    print(f"[DocumentFile] Rendered text notes ({len(decoded_text)} chars) to pristine PDF stream ({len(rendered_pdf)} bytes) for '{filename}'.")
+                    return rendered_pdf, "application/pdf"
+            except Exception:
+                pass
 
-    if file_bytes.startswith(b'\xff\xd8\xff') or fn_lower.endswith(('.jpg', '.jpeg')):
-        return file_bytes, "image/jpeg"
-    if file_bytes.startswith(b'\x89PNG') or fn_lower.endswith('.png'):
-        return file_bytes, "image/png"
-    if file_bytes.startswith(b'RIFF') or fn_lower.endswith('.webp'):
-        return file_bytes, "image/webp"
-
-    return file_bytes, "application/pdf"
+    # Fallback to rendering summary text as PDF
+    display_text = doc_summary or "Vault Archival Document Record - Processed Payload"
+    rendered_pdf = render_text_to_pdf_bytes(filename, display_text)
+    return rendered_pdf, "application/pdf"
 
 
 async def process_document_background(job_id: str, doc_id: str, filename: str, file_bytes: bytes, mime_type: str):
@@ -241,7 +269,7 @@ async def get_document_file(
     pin: Optional[str] = Query(None)
 ):
     """
-    Serves document binary file. Automatically converts image payloads with .pdf extensions into 100% valid spec-compliant PDF streams to eliminate 'Failed to load PDF document' errors across all browser plugins.
+    Serves document binary file. Renders text/markdown notes files directly into formatted PDF streams.
     """
     doc = db_service.get_document(document_id)
     if not doc:
@@ -261,8 +289,9 @@ async def get_document_file(
 
     raw_file_bytes = db_service.get_file_content(document_id)
     fn = doc.get("suggested_filename") or doc.get("generated_filename") or doc.get("original_filename", "document.pdf")
-    
-    valid_bytes, mime = ensure_valid_pdf_or_image_bytes(raw_file_bytes, fn)
+    summary = doc.get("summary", "")
+
+    valid_bytes, mime = ensure_valid_pdf_or_image_bytes(raw_file_bytes, fn, doc_summary=summary)
 
     return Response(
         content=valid_bytes,
