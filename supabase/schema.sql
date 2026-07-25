@@ -1,14 +1,18 @@
 -- Enable the pgvector extension to work with embedding vectors
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Create documents table
+-- Create documents table with exact 8 Master Categories constraint
 CREATE TABLE IF NOT EXISTS public.documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     storage_path TEXT NOT NULL,
     original_filename TEXT NOT NULL,
     generated_filename TEXT NOT NULL,
-    category TEXT NOT NULL CHECK (category IN ('Tax', 'Medical', 'Utility', 'Travel', 'Receipts', 'Identity', 'General')),
+    category TEXT NOT NULL CHECK (category IN (
+        'Tax', 'Financial & Bank', 'Identity & Official', 
+        'Utility & Bills', 'Travel & Tickets', 'Medical & Health', 
+        'Receipts & Invoices', 'Other / Unsorted'
+    )),
     summary TEXT,
     extracted_metadata JSONB DEFAULT '{}'::jsonb,
     file_hash TEXT NOT NULL,
@@ -24,12 +28,12 @@ CREATE INDEX IF NOT EXISTS idx_documents_user_id ON public.documents(user_id);
 CREATE INDEX IF NOT EXISTS idx_documents_category ON public.documents(category);
 CREATE INDEX IF NOT EXISTS idx_documents_expiry_date ON public.documents(expiry_date);
 
--- Create document_embeddings table for semantic search
+-- Create document_embeddings table for 1024-dim NVIDIA Llama Embeddings
 CREATE TABLE IF NOT EXISTS public.document_embeddings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID REFERENCES public.documents(id) ON DELETE CASCADE NOT NULL,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    embedding vector(768), -- 768 dimensions for NVIDIA / standard embedding models
+    embedding vector(1024), -- Updated to 1024 dimensions for nvidia/llama-3.2-nv-embedqa-1b-v2
     model_name TEXT NOT NULL DEFAULT 'nvidia/llama-3.2-nv-embedqa-1b-v2',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -68,9 +72,9 @@ CREATE POLICY "Users can manage their own processing jobs"
     USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
 
--- RPC Function for Cosine Similarity Vector Search
+-- RPC Function for Cosine Similarity Vector Search (1024 dimensions)
 CREATE OR REPLACE FUNCTION match_documents (
-  query_embedding vector(768),
+  query_embedding vector(1024),
   match_threshold float DEFAULT 0.2,
   match_count int DEFAULT 10,
   p_user_id uuid DEFAULT NULL

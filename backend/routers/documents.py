@@ -55,7 +55,7 @@ def create_minimal_pdf_bytes(title: str, text: str) -> bytes:
         "BT /F1 18 Tf 50 720 Td (" + clean_title + ") Tj ET\n"
         "BT /F1 12 Tf 50 680 Td (DocVault Archival Record - Processed Payload) Tj ET\n"
         "endstream endobj\n"
-        "xref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000315 00000 n \ntrailer <</Size 6 /Root 1 0 R>>\nstartxref\n515\n%%EOF"
+        "xref\n0 6\n0000000000 65535 f \n0000000058 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000244 00000 n \n0000000315 00000 n \ntrailer <</Size 6 /Root 1 0 R>>\nstartxref\n515\n%%EOF"
     )
     return pdf_str.encode('latin1', errors='ignore')
 
@@ -96,9 +96,9 @@ async def process_document_background(job_id: str, doc_id: str, filename: str, f
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    x_user_id: Optional[str] = Header("usr_anandha", alias="X-User-Id")
+    x_user_id: Optional[str] = Header("usr_anandha", alias="x-user-id")
 ):
-    """Intake Upload Endpoint scoped to current user."""
+    """Intake Upload Endpoint with case-insensitive mobile header parsing."""
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Empty file provided.")
@@ -173,7 +173,7 @@ async def list_documents(
     expiring_soon: Optional[bool] = Query(None, description="Filter by expiring in 30 days"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    x_user_id: Optional[str] = Header("usr_anandha", alias="X-User-Id")
+    x_user_id: Optional[str] = Header("usr_anandha", alias="x-user-id")
 ):
     """Paginated document listing endpoint with filter chips, isolated by user_id."""
     return db_service.list_documents(
@@ -189,7 +189,7 @@ async def list_documents(
 @router.get("/{document_id}")
 async def get_document_details(
     document_id: str,
-    x_security_pin: Optional[str] = Header(None, alias="X-Security-Pin"),
+    x_security_pin: Optional[str] = Header(None, alias="x-security-pin"),
     pin: Optional[str] = Query(None)
 ):
     """Retrieves document detail with PIN authentication check."""
@@ -211,7 +211,7 @@ async def get_document_details(
 @router.get("/{document_id}/file")
 async def get_document_file(
     document_id: str,
-    x_security_pin: Optional[str] = Header(None, alias="X-Security-Pin"),
+    x_security_pin: Optional[str] = Header(None, alias="x-security-pin"),
     pin: Optional[str] = Query(None)
 ):
     """
