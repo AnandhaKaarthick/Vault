@@ -4,7 +4,6 @@ import uuid
 import hashlib
 import datetime
 from typing import Dict, Any, List, Optional
-from backend.services.demo_seeder import seed_demo_sync
 
 STORAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage")
 os.makedirs(STORAGE_DIR, exist_ok=True)
@@ -50,7 +49,7 @@ class AuthService:
             "id": "usr_demo",
             "username": "demo",
             "email": "demo@docvault.io",
-            "full_name": "Demo Explorer User",
+            "full_name": "Demo Vault User",
             "password_hash": hash_password("demo123"),
             "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
@@ -58,8 +57,6 @@ class AuthService:
         if "usr_demo" not in self._users:
             self._users["usr_demo"] = demo_user_rec
             self._save_users()
-
-        seed_demo_sync("usr_demo")
 
     def register(self, username: str, email: str, password: str, full_name: Optional[str] = None) -> Dict[str, Any]:
         username_clean = username.strip().lower()
@@ -107,8 +104,6 @@ class AuthService:
             if not user_rec:
                 self._seed_default_users()
                 user_rec = self._users["usr_demo"]
-
-            seed_demo_sync("usr_demo")
 
             token = f"tok_{uuid.uuid4().hex}"
             self._tokens[token] = "usr_demo"
