@@ -2,12 +2,10 @@ import hashlib
 import asyncio
 import io
 import re
-import textwrap
 from typing import Optional, List
 from fastapi import APIRouter, UploadFile, File, Header, HTTPException, Query, BackgroundTasks
 from fastapi.responses import Response
 from pydantic import BaseModel
-from PIL import Image, ImageDraw, ImageFont
 
 from backend.services.supabase_service import db_service
 from backend.services.ai_processor import AIProcessor
@@ -28,90 +26,33 @@ class TagsRequest(BaseModel):
     tags: List[str]
 
 
-def render_text_to_pdf_bytes(title: str, text: str) -> bytes:
-    """Renders text or markdown notes onto a formatted A4 page canvas using PIL and returns pristine PDF bytes."""
-    width, height = 1240, 1754  # A4 proportion
-    img = Image.new('RGB', (width, height), color=(255, 255, 255))
-    d = ImageDraw.Draw(img)
-
-    try:
-        title_font = ImageFont.truetype("arial.ttf", 32)
-        sub_font = ImageFont.truetype("arial.ttf", 20)
-        body_font = ImageFont.truetype("arial.ttf", 18)
-    except Exception:
-        title_font = ImageFont.load_default()
-        sub_font = ImageFont.load_default()
-        body_font = ImageFont.load_default()
-
-    # Draw Header Line & Title Box
-    d.rectangle([(40, 40), (1200, 120)], fill=(40, 73, 63))
-    clean_title = re.sub(r'[^a-zA-Z0-9_\-\.\s]', '', title)[:45]
-    d.text((60, 60), clean_title, fill=(255, 255, 255), font=title_font)
-
-    d.text((60, 140), "DOCVAULT ARCHIVAL RECORD - LECTURE & STUDY NOTES", fill=(100, 100, 100), font=sub_font)
-    d.line([(60, 175), (1180, 175)], fill=(200, 200, 200), width=2)
-
-    # Wrap & Draw Text Content
-    lines = text.split('\n')
-    y = 200
-    for line in lines:
-        if y > 1650:
-            break
-        wrapped = textwrap.wrap(line, width=90)
-        if not wrapped:
-            y += 20
-            continue
-        for w_line in wrapped:
-            if y > 1650:
-                break
-            d.text((60, y), w_line, fill=(30, 30, 30), font=body_font)
-            y += 26
-
-    pdf_buf = io.BytesIO()
-    img.save(pdf_buf, format="PDF")
-    return pdf_buf.getvalue()
-
-
-def ensure_valid_pdf_or_image_bytes(file_bytes: bytes, filename: str, doc_summary: str = "") -> (bytes, str):
+def determine_native_media_type(file_bytes: bytes, filename: str) -> str:
     """
-    Guarantees that the returned binary stream is 100% valid for browser PDF viewers and image readers:
-    1. If file_bytes starts with b'%PDF', returns file_bytes directly with media_type application/pdf.
-    2. If file_bytes is JPEG/PNG/WebP image data, wraps/converts the image into a pristine %PDF-1.4 stream using PIL.
-    3. If file_bytes is text/markdown or empty, renders the text/summary into a formatted A4 PDF page.
+    Determines native content type from original file extension and magic bytes.
+    Preserves 100% original file byte payloads without conversion.
     """
-    if file_bytes and file_bytes.startswith(b'%PDF'):
-        return file_bytes, "application/pdf"
-
     fn_lower = filename.lower()
-    is_pdf_requested = fn_lower.endswith('.pdf') or not any(fn_lower.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp'])
 
-    if file_bytes and len(file_bytes) > 10:
-        # Check if file_bytes is a valid image (JPEG/PNG/WebP)
-        try:
-            img = Image.open(io.BytesIO(file_bytes))
-            if img.mode not in ("RGB", "L"):
-                img = img.convert("RGB")
-            
-            pdf_buffer = io.BytesIO()
-            img.save(pdf_buffer, format="PDF")
-            converted_pdf_bytes = pdf_buffer.getvalue()
-            print(f"[DocumentFile] Converted image ({len(file_bytes)} bytes) to pristine PDF stream ({len(converted_pdf_bytes)} bytes) for '{filename}'.")
-            return converted_pdf_bytes, "application/pdf"
-        except Exception:
-            # If not an image, attempt decoding as text / markdown notes
-            try:
-                decoded_text = file_bytes.decode('utf-8', errors='ignore')
-                if len(decoded_text.strip()) > 10:
-                    rendered_pdf = render_text_to_pdf_bytes(filename, decoded_text)
-                    print(f"[DocumentFile] Rendered text notes ({len(decoded_text)} chars) to pristine PDF stream ({len(rendered_pdf)} bytes) for '{filename}'.")
-                    return rendered_pdf, "application/pdf"
-            except Exception:
-                pass
+    if fn_lower.endswith('.pdf') or (file_bytes and file_bytes.startswith(b'%PDF')):
+        return "application/pdf"
+    if fn_lower.endswith(('.jpg', '.jpeg')) or (file_bytes and file_bytes.startswith(b'\xff\xd8\xff')):
+        return "image/jpeg"
+    if fn_lower.endswith('.png') or (file_bytes and file_bytes.startswith(b'\x89PNG')):
+        return "image/png"
+    if fn_lower.endswith('.webp') or (file_bytes and file_bytes.startswith(b'RIFF')):
+        return "image/webp"
+    if fn_lower.endswith(('.md', '.txt', '.log')):
+        return "text/plain; charset=utf-8"
+    if fn_lower.endswith(('.html', '.htm')):
+        return "text/html; charset=utf-8"
+    if fn_lower.endswith('.json'):
+        return "application/json"
+    if fn_lower.endswith('.docx'):
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    if fn_lower.endswith('.doc'):
+        return "application/msword"
 
-    # Fallback to rendering summary text as PDF
-    display_text = doc_summary or "Vault Archival Document Record - Processed Payload"
-    rendered_pdf = render_text_to_pdf_bytes(filename, display_text)
-    return rendered_pdf, "application/pdf"
+    return "application/octet-stream"
 
 
 async def process_document_background(job_id: str, doc_id: str, filename: str, file_bytes: bytes, mime_type: str):
@@ -269,7 +210,8 @@ async def get_document_file(
     pin: Optional[str] = Query(None)
 ):
     """
-    Serves document binary file. Renders text/markdown notes files directly into formatted PDF streams.
+    Serves original untouched document binary payload verbatim without format conversion.
+    Preserves exact user uploaded file format (.pdf, .jpg, .png, .md, .txt, .docx).
     """
     doc = db_service.get_document(document_id)
     if not doc:
@@ -287,14 +229,12 @@ async def get_document_file(
                     detail="Step-up PIN authentication required to access this sensitive document."
                 )
 
-    raw_file_bytes = db_service.get_file_content(document_id)
-    fn = doc.get("suggested_filename") or doc.get("generated_filename") or doc.get("original_filename", "document.pdf")
-    summary = doc.get("summary", "")
-
-    valid_bytes, mime = ensure_valid_pdf_or_image_bytes(raw_file_bytes, fn, doc_summary=summary)
+    raw_file_bytes = db_service.get_file_content(document_id) or b""
+    fn = doc.get("suggested_filename") or doc.get("generated_filename") or doc.get("original_filename", "document")
+    mime = determine_native_media_type(raw_file_bytes, fn)
 
     return Response(
-        content=valid_bytes,
+        content=raw_file_bytes,
         media_type=mime,
         headers={
             "Content-Disposition": f'inline; filename="{fn}"',

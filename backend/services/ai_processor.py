@@ -389,8 +389,9 @@ class AIProcessor:
         if roll_match:
             account_no = roll_match.group(1)
 
-        ext = filename.split('.')[-1] if '.' in filename else 'pdf'
-        suggested_fn = f"{vendor}_{doc_type}_{period}.{ext}"
+        # GUARANTEE 100% UNTOUCHED ORIGINAL FILE EXTENSION
+        orig_ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'pdf'
+        suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
 
         return {
             "category": category,
@@ -500,16 +501,11 @@ Category & Subject Sub-Tag Rules:
 - Internship Certificates, Online Course Certificates (NPTEL, Coursera, Udemy), Hackathons belong under "Certificates & Courses".
   Attach tags: ["Internship"], ["OnlineCourse"], ["Hackathon"], ["Workshop"], or ["Achievement"].
 
-Naming pattern required for suggested_filename:
-- Class Notes: [Subject_Name]_[Topic]_Notes_[Year].[ext] (e.g., ComputerScience_DataStructures_Notes_2026.pdf, Physics_QuantumMechanics_Notes_2026.jpg)
-- Academic: [Board_or_University]_[Document_Type]_[Year].[ext] (e.g., CBSE_Marksheet_2024.jpg, Anna_University_Transcript_2025.pdf)
-- Certificates: [Organization_or_Platform]_[Certificate_Type]_[Year].[ext] (e.g., Google_AI_Internship_Certificate_2025.pdf, NPTEL_Python_Course_Certificate_2024.pdf)
-
 JSON Schema required:
 {{
   "category": "<one of the categories above>",
   "vendor_or_issuer": "<issuing authority, university, board, subject, or organization>",
-  "suggested_filename": "<standardized_name_pattern.jpg>",
+  "suggested_filename": "<standardized_base_name>",
   "summary": "<exactly 2 sentences executive study summary detailing main chapters, formulas, subject concepts, and academic purpose>",
   "metadata": {{
      "total_amount": <number or null>,
@@ -543,7 +539,16 @@ JSON Schema required:
                     raw_cat = parsed.get("category", "")
                     category = cls._normalize_category(raw_cat, filename=filename, text=extracted_text)
 
-                    suggested_fn = parsed.get("suggested_filename", filename)
+                    raw_suggested = parsed.get("suggested_filename", filename)
+                    
+                    # GUARANTEE 100% UNTOUCHED ORIGINAL FILE EXTENSION
+                    orig_ext = filename.rsplit('.', 1)[-1] if '.' in filename else ''
+                    if orig_ext:
+                        base_name = raw_suggested.rsplit('.', 1)[0]
+                        suggested_fn = f"{base_name}.{orig_ext}"
+                    else:
+                        suggested_fn = raw_suggested
+
                     meta = parsed.get("metadata", {})
                     exp_date = meta.get("expiration_or_due_date")
                     
