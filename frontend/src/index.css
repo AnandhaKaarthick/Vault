@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #f8faf4;
+    color: #1C2620;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+  
+  h1, h2, h3, .font-serif {
+    font-family: 'Fraunces', serif;
+  }
+}
+
+/* High-Contrast Guaranteed Button Utility Classes */
+.btn-primary {
+  background-color: #28493F !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+}
+
+.btn-primary:hover {
+  background-color: #1E372F !important;
+}
+
+.btn-secondary {
+  background-color: #FFFFFF !important;
+  color: #28493F !important;
+  border: 1.5px solid #28493F !important;
+  font-weight: 700 !important;
+}
+
+.btn-secondary:hover {
+  background-color: #28493F !important;
+  color: #FFFFFF !important;
+}
+
+/* Category Stamp Badges from Stitch */
+.stamp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 10px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+}
+
+.stamp-utility {
+  background-color: rgba(75, 108, 80, 0.15);
+  color: #2B4530;
+  border: 1px solid rgba(75, 108, 80, 0.4);
+  transform: rotate(-1.2deg);
+}
+
+.stamp-identity {
+  background-color: rgba(122, 59, 54, 0.15);
+  color: #5C2521;
+  border: 1px solid rgba(122, 59, 54, 0.4);
+  transform: rotate(0.8deg);
+}
+
+.stamp-medical {
+  background-color: rgba(62, 92, 118, 0.15);
+  color: #23394D;
+  border: 1px solid rgba(62, 92, 118, 0.4);
+  transform: rotate(-0.9deg);
+}
+
+.stamp-tax {
+  background-color: rgba(91, 70, 54, 0.15);
+  color: #3E2F23;
+  border: 1px solid rgba(91, 70, 54, 0.4);
+  transform: rotate(1.1deg);
+}
+
+.stamp-travel {
+  background-color: rgba(138, 106, 61, 0.15);
+  color: #5E4626;
+  border: 1px solid rgba(138, 106, 61, 0.4);
+  transform: rotate(-1.4deg);
+}
+
+.stamp-receipts {
+  background-color: rgba(107, 91, 115, 0.15);
+  color: #493D4F;
+  border: 1px solid rgba(107, 91, 115, 0.4);
+  transform: rotate(0.6deg);
+}
+
+.stamp-general {
+  background-color: rgba(28, 38, 32, 0.12);
+  color: #1C2620;
+  border: 1px solid rgba(28, 38, 32, 0.3);
+}
+
+/* Archival Card Styling */
+.archival-card {
+  background-color: #FFFFFF;
+  border: 1px solid rgba(28, 38, 32, 0.12);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.archival-card:hover {
+  border-color: #28493F;
+  box-shadow: 0 4px 12px rgba(40, 73, 63, 0.08);
+}
+
+/* Custom Scrollbar */
+.scroll-hide::-webkit-scrollbar {
+  display: none;
+}
+.scroll-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
