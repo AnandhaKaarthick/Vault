@@ -191,7 +191,7 @@ class AIProcessor:
     """
     Multimodal AI Processing Engine using NVIDIA NIM APIs:
     - Vision Model: meta/llama-3.2-11b-vision-instruct (OCR + Vision + Lecture Notes + Marksheets)
-    - Text Model: google/gemma-2-2b-it (Document & Student Asset Structuring + Subject Sub-Tagging)
+    - Text Model: google/gemma-2-2b-it (Document & Student Asset Structuring + Relative Name Conversion)
     - Embeddings: nvidia/llama-3.2-nv-embedqa-1b-v2
     """
 
@@ -272,7 +272,7 @@ class AIProcessor:
 
     @classmethod
     def _apply_deterministic_regex_fallback(cls, filename: str, extracted_text: str) -> Dict[str, Any]:
-        """Offline deterministic rule engine for documents, lecture notes, marksheets, certificates, and photos."""
+        """Offline deterministic rule engine for smart relative name conversion preserving original file extension."""
         fn_lower = filename.lower()
         text_lower = extracted_text.lower()
         combined = fn_lower + " " + text_lower
@@ -295,7 +295,7 @@ class AIProcessor:
         subject_tag = None
         if any(k in combined for k in ["computer science", "data structures", "algorithm", "python", "java", "coding", "software"]):
             subject_tag = "ComputerScience"
-        elif any(k in combined for k in ["math", "mathematics", "calculus", "algebra", "trigonometry"]):
+        elif any(k in combined for k in ["math", "mathematics", "calculus", "algebra", "trigonometry", "numerical"]):
             subject_tag = "Mathematics"
         elif any(k in combined for k in ["physics", "quantum", "mechanics", "optics", "thermodynamics"]):
             subject_tag = "Physics"
@@ -308,90 +308,78 @@ class AIProcessor:
         elif any(k in combined for k in ["mechanical", "fluid", "dynamics"]):
             subject_tag = "MechanicalEng"
 
-        # 1. Notes & Lecture Study Guides Check
-        if any(k in combined for k in ["note", "notes", "lecture", "study", "workbook", "lab manual", "chapter"]):
-            category = "Academic & Marksheets"
-            doc_type = f"{subject_tag or 'Lecture'}_Notes"
-            vendor = "Academic_Classroom"
-            summary = f"Executive study notes summary covering {subject_tag or 'academic'} lecture concepts, formulas, and key chapters."
-            tags = ["Academic", "StudyNotes"]
-            if subject_tag:
-                tags.append(subject_tag)
-
-        # 2. Academic Marksheets & Transcripts Check
-        elif any(k in combined for k in ["marksheet", "mark sheet", "transcript", "grade sheet", "cgpa", "scorecard", "degree", "diploma", "cbse", "sslc", "hsc", "hall ticket", "admit card", "fee receipt", "bonafide"]):
-            category = "Academic & Marksheets"
-            doc_type = "Marksheet" if "marksheet" in combined else "HallTicket" if "ticket" in combined else "Transcript"
-            vendor = "State_Board_or_University"
-            summary = "Official academic marksheet, transcript, or exam document detailing student credentials."
-            tags = ["Academic", "Marksheet", "Official"]
-            if subject_tag:
-                tags.append(subject_tag)
-
-        # 3. Certificates & Courses Check
-        elif any(k in combined for k in ["internship", "coursera", "nptel", "udemy", "hackathon", "workshop", "certificate", "certification", "achievement"]):
-            category = "Certificates & Courses"
-            doc_type = "Internship_Certificate" if "internship" in combined else "Online_Course_Certificate" if any(x in combined for x in ["coursera", "nptel", "udemy"]) else "Achievement_Certificate"
-            vendor = "Course_Platform_or_Organization"
-            summary = "Verified course completion, internship experience, or achievement certification."
-            tags = ["Certificate", "Course", "Skills"]
-            if subject_tag:
-                tags.append(subject_tag)
-
-        # 4. User Photo / Passport Picture Check
-        elif any(k in combined for k in ["photo", "portrait", "passport photo", "profile", "picture", "face"]):
-            category = "Identity & Official"
-            doc_type = "Passport_Photo_Record"
-            vendor = "User_Identity_Media"
-            summary = "Official passport-size portrait photo or user identity photograph record."
-            tags = ["Photo", "Identity", "Portrait"]
-
-        # 5. Specimen Signature Check
-        elif any(k in combined for k in ["signature", "sign", "autograph", "specimen"]):
-            category = "Identity & Official"
-            doc_type = "Specimen_Signature"
-            vendor = "User_Identity_Media"
-            summary = "Digitized specimen signature asset used for official verification and authentication."
-            tags = ["Signature", "Authentication", "Official"]
-
-        elif category == "Tax":
-            doc_type = "Tax_Document"
-            vendor = "Income_Tax_Dept"
-            summary = "Official tax assessment record or return filing document."
-            tags = ["Tax", "ITR", "Official"]
-
-        elif category == "Utility & Bills":
-            doc_type = "Utility_Bill"
-            vendor = "BESCOM" if "bescom" in combined else "Citygas_Metro" if "gas" in combined else "Utility_Provider"
-            summary = "Monthly utility billing invoice detailing consumption and payment due date."
-            tags = ["Utility", "Bill", "Monthly"]
-
-        elif category == "Financial & Bank":
-            doc_type = "Bank_Statement"
-            vendor = "HDFC_Bank" if "hdfc" in combined else "ICICI_Bank" if "icici" in combined else "Financial_Institution"
-            summary = "Financial statement showing account transaction history and ledger totals."
-            tags = ["Finance", "Bank", "Statement"]
-
-        elif category == "Identity & Official":
-            doc_type = "Identity_Proof"
-            vendor = "Govt_Authority"
-            summary = "Official government-issued identity proof requiring step-up PIN verification."
-            tags = ["Identity", "Official", "Government"]
-
         # ISO Dates Regex
         dates_found = re.findall(r'\b20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b', extracted_text)
         if dates_found:
             due_date = dates_found[0].replace('/', '-')
             period = due_date[:4]
 
-        # Roll Number / Account Regex
-        roll_match = re.search(r'\b(?:roll|reg|registration|account|consumer|pnr|id|no)[\s\:\#]*([A-Z0-9\-]{5,15})\b', extracted_text, re.IGNORECASE)
-        if roll_match:
-            account_no = roll_match.group(1)
-
-        # GUARANTEE 100% UNTOUCHED ORIGINAL FILE EXTENSION
+        # Smart Relative Naming logic
         orig_ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'pdf'
-        suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
+
+        # 1. Notes & Lecture Study Guides Check
+        if any(k in combined for k in ["note", "notes", "lecture", "study", "workbook", "lab manual", "chapter"]):
+            category = "Academic & Marksheets"
+            subj_name = subject_tag or "Study"
+            vendor = subj_name
+            doc_type = "Notes"
+            summary = f"Executive study notes summary covering {subj_name} lecture concepts, formulas, and key chapters."
+            tags = ["Academic", "StudyNotes"]
+            if subject_tag:
+                tags.append(subject_tag)
+            suggested_fn = f"{subj_name}_Lecture_Notes_{period}.{orig_ext}"
+
+        # 2. Academic Marksheets & Transcripts Check
+        elif any(k in combined for k in ["marksheet", "mark sheet", "transcript", "grade sheet", "cgpa", "scorecard", "degree", "diploma", "cbse", "sslc", "hsc", "hall ticket", "admit card", "fee receipt", "bonafide"]):
+            category = "Academic & Marksheets"
+            vendor = "University" if "university" in combined else "CBSE" if "cbse" in combined else "Academic_Board"
+            doc_type = "Marksheet" if "marksheet" in combined else "HallTicket" if "ticket" in combined else "Transcript"
+            summary = "Official academic marksheet, transcript, or exam document detailing student credentials."
+            tags = ["Academic", "Marksheet", "Official"]
+            if subject_tag:
+                tags.append(subject_tag)
+            suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
+
+        # 3. Certificates & Courses Check
+        elif any(k in combined for k in ["internship", "coursera", "nptel", "udemy", "hackathon", "workshop", "certificate", "certification", "achievement"]):
+            category = "Certificates & Courses"
+            vendor = "Google" if "google" in combined else "NPTEL" if "nptel" in combined else "Coursera" if "coursera" in combined else "Course_Platform"
+            doc_type = "Internship_Certificate" if "internship" in combined else "Course_Certificate"
+            summary = "Verified course completion, internship experience, or achievement certification."
+            tags = ["Certificate", "Course", "Skills"]
+            if subject_tag:
+                tags.append(subject_tag)
+            suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
+
+        # 4. Utility & Bills
+        elif any(k in combined for k in ["bescom", "bill", "electricity", "utility", "broadband", "water", "gas"]):
+            category = "Utility & Bills"
+            vendor = "BESCOM" if "bescom" in combined else "Citygas" if "gas" in combined else "Utility_Provider"
+            doc_type = "Electricity_Bill" if "electricity" in combined or "bescom" in combined else "Utility_Bill"
+            summary = "Monthly utility billing invoice detailing consumption and payment due date."
+            tags = ["Utility", "Bill", "Monthly"]
+            suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
+
+        # 5. Financial & Bank
+        elif any(k in combined for k in ["bank", "statement", "hdfc", "icici", "salary", "pay stub"]):
+            category = "Financial & Bank"
+            vendor = "HDFC_Bank" if "hdfc" in combined else "ICICI_Bank" if "icici" in combined else "Bank"
+            doc_type = "Statement"
+            summary = "Financial statement showing account transaction history and ledger totals."
+            tags = ["Finance", "Bank", "Statement"]
+            suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
+
+        # 6. User Photo / Signature Check
+        elif any(k in combined for k in ["photo", "portrait", "passport photo", "profile", "signature", "sign"]):
+            category = "Identity & Official"
+            vendor = "User_Identity"
+            doc_type = "Passport_Photo" if "photo" in combined else "Specimen_Signature"
+            summary = "Official passport photo or specimen signature media record."
+            tags = ["Identity", "Official"]
+            suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
+
+        else:
+            suggested_fn = f"{category.replace(' ', '_').replace('&', 'and')}_Record_{period}.{orig_ext}"
 
         return {
             "category": category,
@@ -417,7 +405,7 @@ class AIProcessor:
         Executes multimodal analysis for Student Documents, Class Notes, Marksheets, Certificates, Photos, and Signatures:
         1. Preprocesses image bytes for blur restoration and edge sharpening.
         2. Calls NVIDIA Vision NIM (meta/llama-3.2-11b-vision-instruct).
-        3. Calls Gemma 2B (google/gemma-2-2b-it) for JSON structuring, subject sub-tagging, and 2-sentence study summaries.
+        3. Calls Gemma 2B (google/gemma-2-2b-it) for JSON structuring, subject sub-tagging, and smart relative filename conversion.
         """
         extracted_text = ""
         is_image = mime_type.startswith("image/") or filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))
@@ -483,8 +471,8 @@ class AIProcessor:
         if not extracted_text:
             extracted_text = cls._extract_text_from_pdf_or_bytes(filename, file_bytes)
 
-        # Step 2: Gemma 2B Structuring & Targeted Entity Parsing
-        print(f"[AIProcessor] Invoking NVIDIA Text NIM ({NVIDIA_TEXT_MODEL}) for Gemma 2B student asset structuring...")
+        # Step 2: Gemma 2B Structuring & Relative Naming Conversion
+        print(f"[AIProcessor] Invoking NVIDIA Text NIM ({NVIDIA_TEXT_MODEL}) for Gemma 2B smart relative naming...")
         struct_prompt = f"""
 Analyze the following extracted text/description thoroughly and respond strictly with a valid JSON object matching the schema below. Strip any markdown codeblock tags.
 
@@ -495,17 +483,17 @@ Extracted Vision Analysis:
 Categories available:
 ["Academic & Marksheets", "Certificates & Courses", "Tax", "Financial & Bank", "Identity & Official", "Utility & Bills", "Travel & Tickets", "Medical & Health", "Receipts & Invoices", "Other / Unsorted"]
 
-Category & Subject Sub-Tag Rules:
-- Class Notes, Lecture Slides, Study Guides, Marksheets, Transcripts, Hall Tickets, Fee Receipts belong under "Academic & Marksheets".
-  Identify the academic subject and attach subject sub-tags: ["ComputerScience"], ["Mathematics"], ["Physics"], ["Chemistry"], ["DataStructures"], ["AI"], ["ElectricalEng"], ["Biology"], ["Economics"], ["History"], or ["StudyNotes"].
-- Internship Certificates, Online Course Certificates (NPTEL, Coursera, Udemy), Hackathons belong under "Certificates & Courses".
-  Attach tags: ["Internship"], ["OnlineCourse"], ["Hackathon"], ["Workshop"], or ["Achievement"].
+Relative Naming Conversion Rules for suggested_filename (without file extension):
+- For Class Notes: [Subject_Name]_[Topic]_Notes_[Year] (e.g. ComputerScience_DataStructures_Notes_2026, Physics_QuantumMechanics_Notes_2026)
+- For Marksheets: [University_or_Board]_[Document_Type]_[Year] (e.g. CBSE_Class12_Marksheet_2024, Anna_University_Semester6_Transcript_2026)
+- For Certificates: [Organization_or_Platform]_[Certificate_Title]_[Year] (e.g. Google_AI_Internship_Certificate_2025, NPTEL_Python_Course_Certificate_2024)
+- For Bills: [Vendor_or_Provider]_[Bill_Type]_[Year] (e.g. BESCOM_Electricity_Bill_2026)
 
 JSON Schema required:
 {{
   "category": "<one of the categories above>",
   "vendor_or_issuer": "<issuing authority, university, board, subject, or organization>",
-  "suggested_filename": "<standardized_base_name>",
+  "suggested_filename": "<smart_descriptive_relative_name>",
   "summary": "<exactly 2 sentences executive study summary detailing main chapters, formulas, subject concepts, and academic purpose>",
   "metadata": {{
      "total_amount": <number or null>,
@@ -539,15 +527,17 @@ JSON Schema required:
                     raw_cat = parsed.get("category", "")
                     category = cls._normalize_category(raw_cat, filename=filename, text=extracted_text)
 
-                    raw_suggested = parsed.get("suggested_filename", filename)
+                    raw_suggested = parsed.get("suggested_filename", "")
+                    if not raw_suggested or raw_suggested.strip() in ["", "smart_descriptive_relative_name"]:
+                        raw_suggested = f"{category.replace(' ', '_').replace('&', 'and')}_Record"
+
+                    # Clean relative base name
+                    clean_base = re.sub(r'[^a-zA-Z0-9_\-]', '_', raw_suggested.rsplit('.', 1)[0]).strip('_')
+                    clean_base = re.sub(r'_+', '_', clean_base)
                     
-                    # GUARANTEE 100% UNTOUCHED ORIGINAL FILE EXTENSION
-                    orig_ext = filename.rsplit('.', 1)[-1] if '.' in filename else ''
-                    if orig_ext:
-                        base_name = raw_suggested.rsplit('.', 1)[0]
-                        suggested_fn = f"{base_name}.{orig_ext}"
-                    else:
-                        suggested_fn = raw_suggested
+                    # PRESERVE ORIGINAL FILE EXTENSION
+                    orig_ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'pdf'
+                    suggested_fn = f"{clean_base}.{orig_ext}"
 
                     meta = parsed.get("metadata", {})
                     exp_date = meta.get("expiration_or_due_date")
