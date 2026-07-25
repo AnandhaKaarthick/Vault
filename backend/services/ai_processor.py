@@ -395,13 +395,27 @@ class AIProcessor:
             tags = ["Utility", "Bill", "Monthly"]
             suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
 
-        # 5. Financial & Bank
-        elif any(k in combined for k in ["bank", "statement", "hdfc", "icici", "salary", "pay stub"]):
+        # 5. Financial, Insurance & Bank Check
+        elif any(k in combined for k in ["insurance", "policy", "two-wheeler", "renewal", "bank", "statement", "hdfc", "icici", "salary", "pay stub"]):
             category = "Financial & Bank"
-            vendor = "HDFC_Bank" if "hdfc" in combined else "ICICI_Bank" if "icici" in combined else "Bank"
-            doc_type = "Statement"
-            summary = "Financial statement showing account transaction history and ledger totals."
-            tags = ["Finance", "Bank", "Statement"]
+            if "sure shield" in combined or "sureshield" in combined or "ss-2w" in combined:
+                vendor = "SureShield"
+                doc_type = "TwoWheeler_InsuranceRenewal"
+            elif "hdfc" in combined:
+                vendor = "HDFC_Bank"
+                doc_type = "Statement"
+            elif "icici" in combined:
+                vendor = "ICICI_Bank"
+                doc_type = "Statement"
+            elif "insurance" in combined or "policy" in combined:
+                vendor = "Insurance_Provider"
+                doc_type = "Policy_RenewalNotice"
+            else:
+                vendor = "Bank"
+                doc_type = "Statement"
+            
+            summary = f"Official {vendor} financial statement or insurance policy renewal notice."
+            tags = ["Finance", "Insurance", "Policy"]
             suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
 
         # 6. User Photo / Signature Check
@@ -571,8 +585,9 @@ JSON Schema required:
                     raw_suggested = parsed.get("suggested_filename", "")
                     fn_lower = filename.lower()
                     
-                    # If raw_suggested is opaque code (like NOC26CS84S385800358) or empty:
-                    if not raw_suggested or raw_suggested.strip() in ["", "descriptive_relative_name_without_extension"] or raw_suggested.lower() == fn_lower.rsplit('.', 1)[0]:
+                    # If raw_suggested contains unreadable reference codes (like SS-2W-99120456 or NOC26CS84S385800358) or is empty:
+                    has_opaque_code = bool(re.search(r'(?:SS-2W|\bNOC\d|[A-Z0-9]{3,}-[A-Z0-9]{2,}-\d+)', raw_suggested, re.IGNORECASE))
+                    if not raw_suggested or has_opaque_code or raw_suggested.strip() in ["", "descriptive_relative_name_without_extension"] or raw_suggested.lower() == fn_lower.rsplit('.', 1)[0]:
                         fallback_data = cls._apply_deterministic_regex_fallback(filename, extracted_text)
                         raw_suggested = fallback_data["suggested_filename"].rsplit('.', 1)[0]
                         if not parsed.get("vendor_or_issuer") or str(parsed.get("vendor_or_issuer")).lower() in ["null", "none", "unknown"]:
