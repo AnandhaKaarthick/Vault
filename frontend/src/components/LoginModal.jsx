@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, User, Mail, ShieldCheck, ArrowRight, Loader2, KeyRound, UserPlus, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Lock, User, Mail, ShieldCheck, ArrowRight, Loader2, KeyRound, UserPlus, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import { loginUser, registerUser } from '../services/api';
 
 export default function LoginModal({ onLoginSuccess, onClose }) {
@@ -59,75 +59,33 @@ export default function LoginModal({ onLoginSuccess, onClose }) {
       localStorage.setItem('vault_user', JSON.stringify(res.user));
       onLoginSuccess(res.user);
     } catch (err) {
-      setError('Demo login failed. Please try manual login.');
+      setError(err.response?.data?.detail || 'Demo login failed.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C2620]/70 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-md bg-white border border-[#1C2620]/20 rounded-xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-[#FAF7F2] border-2 border-[#1C2620] rounded-xl shadow-2xl max-w-md w-full overflow-hidden transition-all duration-300">
         
-        {/* Header Hero Banner */}
+        {/* Modal Header */}
         <div className="bg-[#28493F] p-6 text-white text-center relative">
           <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3 border border-white/20">
-            <Lock className="w-6 h-6 text-white" />
+            <Lock className="w-6 h-6 text-[#A3B899]" />
           </div>
-          <h2 className="font-serif text-2xl font-bold tracking-tight">DocVault Records</h2>
-          <p className="font-sans text-xs text-white/80 mt-1">
-            Secure Multi-Tenant AI Document Vault & Archival System
+          <h2 className="font-serif text-2xl font-bold tracking-tight">DocVault Workspace</h2>
+          <p className="text-xs text-white/80 font-mono mt-1">
+            {isRegister ? 'Create your isolated document vault account' : 'Sign in to access your intelligent vault'}
           </p>
-
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 text-white/70 hover:text-white p-1 rounded hover:bg-white/10"
-            >
-              ✕
-            </button>
-          )}
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex border-b border-[#1C2620]/15 bg-[#f8faf4]">
-          <button
-            type="button"
-            onClick={() => {
-              setIsRegister(false);
-              setError(null);
-            }}
-            className={`flex-1 py-3 font-mono text-xs font-bold uppercase tracking-wider transition-colors ${
-              !isRegister 
-                ? 'bg-white text-[#28493F] border-b-2 border-[#28493F]' 
-                : 'text-[#1C2620]/60 hover:text-[#1C2620]'
-            }`}
-          >
-            Sign In
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setIsRegister(true);
-              setError(null);
-            }}
-            className={`flex-1 py-3 font-mono text-xs font-bold uppercase tracking-wider transition-colors ${
-              isRegister 
-                ? 'bg-white text-[#28493F] border-b-2 border-[#28493F]' 
-                : 'text-[#1C2620]/60 hover:text-[#1C2620]'
-            }`}
-          >
-            Create Account
-          </button>
-        </div>
-
-        {/* Form Body */}
+        {/* Modal Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           
           {error && (
-            <div className="p-3 bg-[#B4402F]/10 border border-[#B4402F]/30 rounded text-xs text-[#B4402F] font-semibold flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="p-3 bg-red-50 border border-red-300 rounded text-red-800 text-xs font-mono flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
@@ -143,7 +101,7 @@ export default function LoginModal({ onLoginSuccess, onClose }) {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Anandha Kaarthick"
+                  placeholder="Anandha Kaarthick S."
                   className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#1C2620]/25 rounded text-sm text-[#1C2620] focus:outline-none focus:border-[#28493F] focus:ring-1 focus:ring-[#28493F]"
                 />
               </div>
@@ -160,7 +118,7 @@ export default function LoginModal({ onLoginSuccess, onClose }) {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={isRegister ? "anandha" : "anandha or email@example.com"}
+                placeholder={isRegister ? "anandha" : "demo or anandha"}
                 autoFocus
                 className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#1C2620]/25 rounded text-sm text-[#1C2620] focus:outline-none focus:border-[#28493F] focus:ring-1 focus:ring-[#28493F]"
               />
@@ -228,34 +186,43 @@ export default function LoginModal({ onLoginSuccess, onClose }) {
           {/* 1-Click Quick Demo Accounts Bar */}
           {!isRegister && (
             <div className="pt-3 border-t border-[#1C2620]/15 space-y-2">
-              <p className="font-mono text-[10px] text-center uppercase tracking-widest text-[#1C2620]/60 font-bold">
-                ⚡ Quick 1-Click Demo Logins
+              <p className="font-mono text-[10px] text-center uppercase tracking-widest text-[#1C2620]/60 font-bold flex items-center justify-center gap-1">
+                <Sparkles className="w-3 h-3 text-[#28493F]" />
+                <span>Explore Live Demo Mode</span>
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => handleQuickDemoLogin('anandha', 'password123')}
-                  className="px-2.5 py-1.5 bg-[#f8faf4] hover:bg-[#28493F]/10 text-[#28493F] border border-[#28493F]/30 rounded font-mono text-xs font-bold text-center truncate"
+                  onClick={() => handleQuickDemoLogin('demo', 'demo123')}
+                  className="px-2.5 py-2 bg-[#28493F]/10 hover:bg-[#28493F]/20 text-[#28493F] border border-[#28493F]/40 rounded font-mono text-xs font-bold text-center truncate flex items-center justify-center gap-1 shadow-sm transition-all"
                 >
-                  👤 Anandha S.
+                  ⚡ Demo User (Sample Vault)
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickDemoLogin('demo_user', 'password123')}
-                  className="px-2.5 py-1.5 bg-[#f8faf4] hover:bg-[#28493F]/10 text-[#28493F] border border-[#28493F]/30 rounded font-mono text-xs font-bold text-center truncate"
+                  onClick={() => handleQuickDemoLogin('anandha', 'password123')}
+                  className="px-2.5 py-2 bg-[#f8faf4] hover:bg-[#28493F]/10 text-[#28493F] border border-[#28493F]/30 rounded font-mono text-xs font-bold text-center truncate flex items-center justify-center gap-1"
                 >
-                  👤 Demo User
+                  👤 Anandha S.
                 </button>
               </div>
             </div>
           )}
-        </form>
 
-        <div className="bg-[#f8faf4] p-3 text-center border-t border-[#1C2620]/10">
-          <p className="text-[11px] font-mono text-[#1C2620]/60">
-            Vault Isolation: User document records are isolated per user profile.
-          </p>
-        </div>
+          {/* Toggle Login/Register */}
+          <div className="text-center pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setError(null);
+              }}
+              className="font-mono text-xs text-[#28493F] hover:underline font-semibold"
+            >
+              {isRegister ? 'Already have an account? Sign In' : "Don't have an account? Create One"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

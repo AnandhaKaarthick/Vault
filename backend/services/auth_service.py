@@ -4,6 +4,7 @@ import uuid
 import hashlib
 import datetime
 from typing import Dict, Any, List, Optional
+from backend.services.demo_seeder import seed_demo_sync
 
 STORAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage")
 os.makedirs(STORAGE_DIR, exist_ok=True)
@@ -44,39 +45,21 @@ class AuthService:
             print(f"[AuthService] Error saving users DB: {e}")
 
     def _seed_default_users(self):
-        """Seeds default accounts if user DB is empty."""
-        defaults = [
-            {
-                "username": "anandha",
-                "email": "anandha@docvault.io",
-                "password": "password123",
-                "full_name": "Anandha Kaarthick S."
-            },
-            {
-                "username": "demo_user",
-                "email": "demo@docvault.io",
-                "password": "password123",
-                "full_name": "Demo Vault User"
-            }
-        ]
+        """Seeds default accounts including Demo User if missing."""
+        demo_user_rec = {
+            "id": "usr_demo",
+            "username": "demo",
+            "email": "demo@docvault.io",
+            "full_name": "Demo Explorer User",
+            "password_hash": hash_password("demo123"),
+            "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        }
 
-        seeded = False
-        for d in defaults:
-            uname = d["username"].lower()
-            if not any(u.get("username", "").lower() == uname for u in self._users.values()):
-                uid = f"usr_{uuid.uuid4().hex[:8]}"
-                self._users[uid] = {
-                    "id": uid,
-                    "username": d["username"],
-                    "email": d["email"],
-                    "full_name": d["full_name"],
-                    "password_hash": hash_password(d["password"]),
-                    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-                }
-                seeded = True
-
-        if seeded:
+        if "usr_demo" not in self._users:
+            self._users["usr_demo"] = demo_user_rec
             self._save_users()
+
+        seed_demo_sync("usr_demo")
 
     def register(self, username: str, email: str, password: str, full_name: Optional[str] = None) -> Dict[str, Any]:
         username_clean = username.strip().lower()
@@ -116,8 +99,30 @@ class AuthService:
 
     def login(self, username_or_email: str, password: str) -> Dict[str, Any]:
         ident = username_or_email.strip().lower()
-        pass_hash = hash_password(password)
+        pass_clean = password.strip()
 
+        # Check for Demo Account 1-Click Flexible Match
+        if ident in ["demo", "demo_user", "demouser", "demo@docvault.io"]:
+            user_rec = self._users.get("usr_demo")
+            if not user_rec:
+                self._seed_default_users()
+                user_rec = self._users["usr_demo"]
+
+            seed_demo_sync("usr_demo")
+
+            token = f"tok_{uuid.uuid4().hex}"
+            self._tokens[token] = "usr_demo"
+            return {
+                "token": token,
+                "user": {
+                    "id": "usr_demo",
+                    "username": user_rec["username"],
+                    "email": user_rec["email"],
+                    "full_name": user_rec["full_name"]
+                }
+            }
+
+        pass_hash = hash_password(password)
         target_user = None
         for u in self._users.values():
             if u["username"].lower() == ident or u["email"].lower() == ident:
