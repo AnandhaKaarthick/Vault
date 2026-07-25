@@ -6,5 +6,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.main import app
 
-# Export handler for Vercel Serverless Function compatibility
-handler = app
+try:
+    from mangum import Mangum
+    handler = Mangum(app)
+except ImportError:
+    handler = app
+
+# Also expose app
+app = app
