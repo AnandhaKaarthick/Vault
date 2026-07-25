@@ -123,10 +123,14 @@ class SupabaseService:
         return None
 
     def get_document_by_hash(self, file_hash: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Checks for existing document matching sha256 file_hash."""
+        """Checks for existing document matching sha256 file_hash strictly scoped to the requesting user_id."""
+        if not file_hash:
+            return None
+
         for doc in self._memory_documents.values():
             if doc.get("file_hash") == file_hash:
-                if user_id and doc.get("user_id") and doc.get("user_id") != user_id:
+                doc_uid = doc.get("user_id") or "usr_anandha"
+                if user_id and doc_uid != user_id:
                     continue
                 return doc
 
@@ -136,10 +140,10 @@ class SupabaseService:
                 if user_id:
                     q = q.eq("user_id", user_id)
                 res = q.execute()
-                if res.data:
+                if res.data and len(res.data) > 0:
                     return res.data[0]
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[SupabaseService] Remote duplicate check exception: {e}")
         return None
 
     def list_documents(
