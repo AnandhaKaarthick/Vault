@@ -76,11 +76,13 @@ export const getJobStatus = async (jobId) => {
   const response = await api.get(`/documents/jobs/${jobId}`);
   return response.data;
 };
+export const checkJobStatus = getJobStatus;
 
 export const fetchDocuments = async (params = {}) => {
   const response = await api.get('/documents', { params });
   return response.data;
 };
+export const listDocuments = fetchDocuments;
 
 export const fetchDocumentDetails = async (documentId, pin = null) => {
   const headers = {};
@@ -90,6 +92,7 @@ export const fetchDocumentDetails = async (documentId, pin = null) => {
   const response = await api.get(`/documents/${documentId}`, { headers });
   return response.data;
 };
+export const getDocument = fetchDocumentDetails;
 
 export const getDocumentFileUrl = (documentId, pin = null) => {
   const token = localStorage.getItem('vault_token') || '';
@@ -125,11 +128,23 @@ export const verifyPin = async (pin) => {
   return response.data;
 };
 
+// Settings APIs
+export const getSettings = async () => {
+  const response = await api.get('/settings');
+  return response.data;
+};
+
+export const updateSettings = async (settings) => {
+  const response = await api.post('/settings', settings);
+  return response.data;
+};
+
 // Vector & Full-Text Search APIs
 export const searchDocumentsVector = async (query, limit = 10) => {
   const response = await api.post('/search/vector', { query, limit });
   return response.data;
 };
+export const searchDocuments = searchDocumentsVector;
 
 export const searchDocumentsText = async (query) => {
   const response = await api.get('/search/text', { params: { query } });
