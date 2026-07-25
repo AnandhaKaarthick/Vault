@@ -1,32 +1,31 @@
 import axios from 'axios';
 
-const API_BASE = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const api = axios.create({
-  baseURL: API_BASE,
+  baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
-  },
+    'Content-Type': 'application/json'
+  }
 });
 
-// Interceptor to attach user token & user_id headers automatically
+// Automatic Request Interceptor for User ID & Token
 api.interceptors.request.use((config) => {
-  const userJson = localStorage.getItem('vault_user');
-  const token = localStorage.getItem('vault_token');
-
-  if (userJson) {
+  const savedUser = localStorage.getItem('vault_user');
+  if (savedUser) {
     try {
-      const user = JSON.parse(userJson);
+      const user = JSON.parse(savedUser);
       if (user && user.id) {
         config.headers['X-User-Id'] = user.id;
       }
-    } catch (e) {
-      console.error('Error parsing stored user:', e);
-    }
+    } catch (e) {}
+  } else {
+    config.headers['X-User-Id'] = 'usr_anandha';
   }
 
-  if (token) {
-    config.headers['Authorization'] = `Bearer ${token}`;
+  const savedToken = localStorage.getItem('vault_token');
+  if (savedToken) {
+    config.headers['Authorization'] = `Bearer ${savedToken}`;
   }
 
   return config;
@@ -34,22 +33,22 @@ api.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
-// Auth API Calls
-export const loginUser = async (usernameOrEmail, password) => {
-  const response = await api.post('/auth/login', {
-    username_or_email: usernameOrEmail,
-    password: password
-  });
+// Authentication APIs
+export const loginUser = async (username, password) => {
+  const response = await api.post('/auth/login', { username, password });
+  if (response.data && response.data.token) {
+    localStorage.setItem('vault_token', response.data.token);
+    localStorage.setItem('vault_user', JSON.stringify(response.data.user));
+  }
   return response.data;
 };
 
-export const registerUser = async (username, email, password, fullName) => {
-  const response = await api.post('/auth/register', {
-    username,
-    email,
-    password,
-    full_name: fullName
-  });
+export const registerUser = async (username, password, fullName = '') => {
+  const response = await api.post('/auth/register', { username, password, full_name: fullName });
+  if (response.data && response.data.token) {
+    localStorage.setItem('vault_token', response.data.token);
+    localStorage.setItem('vault_user', JSON.stringify(response.data.user));
+  }
   return response.data;
 };
 
@@ -58,14 +57,15 @@ export const getCurrentUser = async () => {
   return response.data;
 };
 
-// Document API Calls
+// Document Management APIs
 export const uploadDocument = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
+  
   const response = await api.post('/documents/upload', formData, {
     headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+      'Content-Type': 'multipart/form-data'
+    }
   });
   return response.data;
 };
@@ -94,6 +94,11 @@ export const renameDocument = async (docId, newFilename) => {
   return response.data;
 };
 
+export const updateDocumentTags = async (docId, tags) => {
+  const response = await api.patch(`/documents/${docId}/tags`, { tags });
+  return response.data;
+};
+
 export const toggleStarDocument = async (docId) => {
   const response = await api.patch(`/documents/${docId}/star`);
   return response.data;
@@ -119,8 +124,8 @@ export const getSettings = async () => {
   return response.data;
 };
 
-export const updateSettings = async (data) => {
-  const response = await api.post('/settings', data);
+export const updateSettings = async (settings) => {
+  const response = await api.post('/settings', settings);
   return response.data;
 };
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Lock, Star, Trash2, Zap, FileText, Loader2, Tag, Edit2, Check, X, GraduationCap, Award
+  Lock, Star, Trash2, Zap, FileText, Loader2, Tag, Edit2, Check, X, GraduationCap, Award, Plus
 } from 'lucide-react';
 
 const STAMP_CLASSES = {
@@ -23,13 +23,18 @@ export default function DocumentCard({
   onOpen,
   onToggleStar,
   onDelete,
-  onRename
+  onRename,
+  onUpdateTags,
+  onTagClick
 }) {
   if (!document) return null;
 
   const currentTitle = document.suggested_filename || document.generated_filename || document.original_filename || 'Unnamed Record';
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(currentTitle);
+
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [newTagInput, setNewTagInput] = useState('');
 
   const category = document.category || 'Other / Unsorted';
   const isSensitive = SENSITIVE_CATEGORIES.includes(category);
@@ -51,6 +56,22 @@ export default function DocumentCard({
       await onRename(document.id, editedTitle.trim());
     }
     setIsEditing(false);
+  };
+
+  const handleAddTag = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const clean = newTagInput.trim().replace('#', '');
+    if (clean && !tagsList.includes(clean)) {
+      const updatedTags = [...tagsList, clean];
+      if (onUpdateTags) {
+        await onUpdateTags(document.id, updatedTags);
+      }
+    }
+    setNewTagInput('');
+    setIsAddingTag(false);
   };
 
   return (
@@ -169,16 +190,60 @@ export default function DocumentCard({
           )}
         </p>
 
-        {/* Tags Array */}
-        {tagsList.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {tagsList.slice(0, 4).map((tag, idx) => (
-              <span key={idx} className="px-2 py-0.5 rounded bg-ledger/10 text-ledger font-mono text-[10px] uppercase font-semibold">
-                #{tag}
-              </span>
-            ))}
-          </div>
-        )}
+        {/* Interactive Subject Tags Array */}
+        <div className="flex flex-wrap items-center gap-1 mb-3">
+          {tagsList.map((tag, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onTagClick) onTagClick(tag);
+              }}
+              className="px-2 py-0.5 rounded bg-ledger/10 hover:bg-ledger/20 text-ledger font-mono text-[10px] uppercase font-semibold transition-colors cursor-pointer"
+              title={`Filter vault by #${tag}`}
+            >
+              #{tag}
+            </button>
+          ))}
+
+          {/* Add Tag Input or Button */}
+          {isAddingTag ? (
+            <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+              <input
+                type="text"
+                value={newTagInput}
+                onChange={(e) => setNewTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddTag(e);
+                  if (e.key === 'Escape') setIsAddingTag(false);
+                }}
+                placeholder="Subject..."
+                autoFocus
+                className="w-20 px-1.5 py-0.5 text-[10px] font-mono border border-[#28493F] rounded focus:outline-none"
+              />
+              <button
+                onClick={handleAddTag}
+                className="p-0.5 bg-[#28493F] text-white rounded"
+              >
+                <Check className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsAddingTag(true);
+              }}
+              className="px-1.5 py-0.5 rounded border border-ink/20 text-ink/60 hover:text-ledger hover:border-ledger font-mono text-[10px] uppercase font-semibold flex items-center gap-0.5 transition-colors"
+              title="Add subject tag"
+            >
+              <Plus className="w-2.5 h-2.5" />
+              <span>Tag</span>
+            </button>
+          )}
+        </div>
 
         {/* Extracted Metadata Pills */}
         {metadataEntries.length > 0 && (

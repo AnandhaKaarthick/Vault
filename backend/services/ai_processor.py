@@ -69,6 +69,8 @@ CATEGORY_MAP = {
     "neet": "Academic & Marksheets",
     "jee": "Academic & Marksheets",
     "gate": "Academic & Marksheets",
+    "notes": "Academic & Marksheets",
+    "lecture": "Academic & Marksheets",
 
     # Certificates & Courses
     "certificates & courses": "Certificates & Courses",
@@ -188,15 +190,15 @@ CATEGORY_MAP = {
 class AIProcessor:
     """
     Multimodal AI Processing Engine using NVIDIA NIM APIs:
-    - Vision Model: meta/llama-3.2-11b-vision-instruct (OCR + Vision + Student Documents)
-    - Text Model: google/gemma-2-2b-it (Document & Student Asset Structuring + Sub-Tagging)
+    - Vision Model: meta/llama-3.2-11b-vision-instruct (OCR + Vision + Lecture Notes + Marksheets)
+    - Text Model: google/gemma-2-2b-it (Document & Student Asset Structuring + Subject Sub-Tagging)
     - Embeddings: nvidia/llama-3.2-nv-embedqa-1b-v2
     """
 
     @classmethod
     def preprocess_blurry_image(cls, file_bytes: bytes) -> bytes:
         """
-        Applies multi-stage image restoration for documents, marksheets, photos, and signatures:
+        Applies multi-stage image restoration for documents, marksheets, notes, photos, and signatures:
         1. Auto-contrast histogram expansion.
         2. Adaptive Contrast Enhancement (1.75x).
         3. Unsharp Masking (radius=2, percent=175, threshold=2).
@@ -270,7 +272,7 @@ class AIProcessor:
 
     @classmethod
     def _apply_deterministic_regex_fallback(cls, filename: str, extracted_text: str) -> Dict[str, Any]:
-        """Offline deterministic rule engine for documents, student marksheets, certificates, and photos."""
+        """Offline deterministic rule engine for documents, lecture notes, marksheets, certificates, and photos."""
         fn_lower = filename.lower()
         text_lower = extracted_text.lower()
         combined = fn_lower + " " + text_lower
@@ -287,24 +289,56 @@ class AIProcessor:
         account_no = None
         doc_date = datetime.date.today().isoformat()
         tags = ["Archival", "Record"]
+        summary = "Document record processed and stored securely in vault."
 
-        # 1. Academic & Marksheets Check
-        if any(k in combined for k in ["marksheet", "mark sheet", "transcript", "grade sheet", "cgpa", "scorecard", "degree", "diploma", "cbse", "sslc", "hsc", "hall ticket", "admit card", "fee receipt", "bonafide"]):
+        # Detect Subject for Notes & Academic Files
+        subject_tag = None
+        if any(k in combined for k in ["computer science", "data structures", "algorithm", "python", "java", "coding", "software"]):
+            subject_tag = "ComputerScience"
+        elif any(k in combined for k in ["math", "mathematics", "calculus", "algebra", "trigonometry"]):
+            subject_tag = "Mathematics"
+        elif any(k in combined for k in ["physics", "quantum", "mechanics", "optics", "thermodynamics"]):
+            subject_tag = "Physics"
+        elif any(k in combined for k in ["chemistry", "organic", "inorganic", "chemical"]):
+            subject_tag = "Chemistry"
+        elif any(k in combined for k in ["biology", "botany", "zoology", "anatomy"]):
+            subject_tag = "Biology"
+        elif any(k in combined for k in ["electrical", "circuit", "electronics"]):
+            subject_tag = "ElectricalEng"
+        elif any(k in combined for k in ["mechanical", "fluid", "dynamics"]):
+            subject_tag = "MechanicalEng"
+
+        # 1. Notes & Lecture Study Guides Check
+        if any(k in combined for k in ["note", "notes", "lecture", "study", "workbook", "lab manual", "chapter"]):
+            category = "Academic & Marksheets"
+            doc_type = f"{subject_tag or 'Lecture'}_Notes"
+            vendor = "Academic_Classroom"
+            summary = f"Executive study notes summary covering {subject_tag or 'academic'} lecture concepts, formulas, and key chapters."
+            tags = ["Academic", "StudyNotes"]
+            if subject_tag:
+                tags.append(subject_tag)
+
+        # 2. Academic Marksheets & Transcripts Check
+        elif any(k in combined for k in ["marksheet", "mark sheet", "transcript", "grade sheet", "cgpa", "scorecard", "degree", "diploma", "cbse", "sslc", "hsc", "hall ticket", "admit card", "fee receipt", "bonafide"]):
             category = "Academic & Marksheets"
             doc_type = "Marksheet" if "marksheet" in combined else "HallTicket" if "ticket" in combined else "Transcript"
             vendor = "State_Board_or_University"
             summary = "Official academic marksheet, transcript, or exam document detailing student credentials."
             tags = ["Academic", "Marksheet", "Official"]
+            if subject_tag:
+                tags.append(subject_tag)
 
-        # 2. Certificates & Courses Check
+        # 3. Certificates & Courses Check
         elif any(k in combined for k in ["internship", "coursera", "nptel", "udemy", "hackathon", "workshop", "certificate", "certification", "achievement"]):
             category = "Certificates & Courses"
             doc_type = "Internship_Certificate" if "internship" in combined else "Online_Course_Certificate" if any(x in combined for x in ["coursera", "nptel", "udemy"]) else "Achievement_Certificate"
             vendor = "Course_Platform_or_Organization"
             summary = "Verified course completion, internship experience, or achievement certification."
             tags = ["Certificate", "Course", "Skills"]
+            if subject_tag:
+                tags.append(subject_tag)
 
-        # 3. User Photo / Passport Picture Check
+        # 4. User Photo / Passport Picture Check
         elif any(k in combined for k in ["photo", "portrait", "passport photo", "profile", "picture", "face"]):
             category = "Identity & Official"
             doc_type = "Passport_Photo_Record"
@@ -312,7 +346,7 @@ class AIProcessor:
             summary = "Official passport-size portrait photo or user identity photograph record."
             tags = ["Photo", "Identity", "Portrait"]
 
-        # 4. Specimen Signature Check
+        # 5. Specimen Signature Check
         elif any(k in combined for k in ["signature", "sign", "autograph", "specimen"]):
             category = "Identity & Official"
             doc_type = "Specimen_Signature"
@@ -379,10 +413,10 @@ class AIProcessor:
     @classmethod
     async def process_document(cls, filename: str, file_bytes: bytes, mime_type: str) -> Dict[str, Any]:
         """
-        Executes multimodal analysis for Student Documents, Marksheets, Certificates, Photos, and Signatures:
+        Executes multimodal analysis for Student Documents, Class Notes, Marksheets, Certificates, Photos, and Signatures:
         1. Preprocesses image bytes for blur restoration and edge sharpening.
         2. Calls NVIDIA Vision NIM (meta/llama-3.2-11b-vision-instruct).
-        3. Calls Gemma 2B (google/gemma-2-2b-it) for JSON structuring, student sub-tagging, and naming standardization.
+        3. Calls Gemma 2B (google/gemma-2-2b-it) for JSON structuring, subject sub-tagging, and 2-sentence study summaries.
         """
         extracted_text = ""
         is_image = mime_type.startswith("image/") or filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))
@@ -411,10 +445,11 @@ class AIProcessor:
 
             ocr_prompt = (
                 "Examine this image upload thoroughly. "
-                "1. If it is an Academic Marksheet, Grade Card, Transcript, Hall Ticket, Admit Card, or Fee Receipt, transcribe all candidate/student names, roll numbers, subject marks, CGPA, percentage, board/university names, and issue dates. "
-                "2. If it is an Internship Certificate, Online Course Certificate (Coursera, NPTEL, Udemy), Hackathon Award, or Workshop Certificate, transcribe issuing organization, course/event title, candidate name, and completion date. "
-                "3. If it is a User Passport Photo or Portrait, identify it as 'User Passport/Portrait Photograph' under 'Identity & Official'. "
-                "4. For general documents, bills, receipts, or certificates, transcribe all visible text, dates, monetary amounts, and reference numbers accurately."
+                "1. If it is Lecture/Class Notes, Study Guides, or Lab Notebooks, transcribe all handwritten or typed text, chapter titles, subject headers, formulas, equations, and main study topics. "
+                "2. If it is an Academic Marksheet, Grade Card, Transcript, Hall Ticket, Admit Card, or Fee Receipt, transcribe all candidate/student names, roll numbers, subject marks, CGPA, percentage, board/university names, and issue dates. "
+                "3. If it is an Internship Certificate, Online Course Certificate (Coursera, NPTEL, Udemy), Hackathon Award, or Workshop Certificate, transcribe issuing organization, course/event title, candidate name, and completion date. "
+                "4. If it is a User Passport Photo or Portrait, identify it as 'User Passport/Portrait Photograph' under 'Identity & Official'. "
+                "5. For general documents, bills, receipts, or certificates, transcribe all visible text, dates, monetary amounts, and reference numbers accurately."
             )
 
             try:
@@ -459,23 +494,23 @@ Extracted Vision Analysis:
 Categories available:
 ["Academic & Marksheets", "Certificates & Courses", "Tax", "Financial & Bank", "Identity & Official", "Utility & Bills", "Travel & Tickets", "Medical & Health", "Receipts & Invoices", "Other / Unsorted"]
 
-Category & Sub-Tag Rules:
-- Marksheets, Transcripts, Grade Cards, Board Exams, Hall Tickets, Admit Cards, Tuition Fee Receipts, Bonafide Certificates belong under "Academic & Marksheets".
-  Assign relevant sub-tags: ["Marksheet"], ["Transcript"], ["HallTicket"], ["FeeReceipt"], ["Admission"], or ["Notes"].
-- Internship Certificates, Online Course Certificates (NPTEL, Coursera, Udemy), Hackathons, Workshop Certificates, Awards belong under "Certificates & Courses".
-  Assign relevant sub-tags: ["Internship"], ["OnlineCourse"], ["Hackathon"], ["Workshop"], or ["Achievement"].
-- User Photos & Specimen Signatures belong under "Identity & Official".
+Category & Subject Sub-Tag Rules:
+- Class Notes, Lecture Slides, Study Guides, Marksheets, Transcripts, Hall Tickets, Fee Receipts belong under "Academic & Marksheets".
+  Identify the academic subject and attach subject sub-tags: ["ComputerScience"], ["Mathematics"], ["Physics"], ["Chemistry"], ["DataStructures"], ["AI"], ["ElectricalEng"], ["Biology"], ["Economics"], ["History"], or ["StudyNotes"].
+- Internship Certificates, Online Course Certificates (NPTEL, Coursera, Udemy), Hackathons belong under "Certificates & Courses".
+  Attach tags: ["Internship"], ["OnlineCourse"], ["Hackathon"], ["Workshop"], or ["Achievement"].
 
 Naming pattern required for suggested_filename:
-- Academic: [Board_or_University]_[Document_Type]_[Year].[ext] (e.g., CBSE_Marksheet_2024.jpg, Anna_University_Transcript_2025.pdf, NEET_Hall_Ticket_2026.pdf)
+- Class Notes: [Subject_Name]_[Topic]_Notes_[Year].[ext] (e.g., ComputerScience_DataStructures_Notes_2026.pdf, Physics_QuantumMechanics_Notes_2026.jpg)
+- Academic: [Board_or_University]_[Document_Type]_[Year].[ext] (e.g., CBSE_Marksheet_2024.jpg, Anna_University_Transcript_2025.pdf)
 - Certificates: [Organization_or_Platform]_[Certificate_Type]_[Year].[ext] (e.g., Google_AI_Internship_Certificate_2025.pdf, NPTEL_Python_Course_Certificate_2024.pdf)
 
 JSON Schema required:
 {{
   "category": "<one of the categories above>",
-  "vendor_or_issuer": "<issuing authority, university, board, platform, or organization>",
+  "vendor_or_issuer": "<issuing authority, university, board, subject, or organization>",
   "suggested_filename": "<standardized_name_pattern.jpg>",
-  "summary": "<exactly 2 sentences summarizing the upload details, visual contents, academic purpose, and key attributes>",
+  "summary": "<exactly 2 sentences executive study summary detailing main chapters, formulas, subject concepts, and academic purpose>",
   "metadata": {{
      "total_amount": <number or null>,
      "currency": "<INR/USD/EUR>",
@@ -483,7 +518,7 @@ JSON Schema required:
      "expiration_or_due_date": "<YYYY-MM-DD or null>",
      "account_number": "<roll number, registration number, ID, or null>"
   }},
-  "tags": ["<tag1>", "<tag2>", "<tag3>"]
+  "tags": ["<subject_tag1>", "<tag2>", "<tag3>"]
 }}
 """
         try:

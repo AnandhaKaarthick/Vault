@@ -9,7 +9,7 @@ import PinModal from './components/PinModal';
 import SettingsModal from './components/SettingsModal';
 import LoginModal from './components/LoginModal';
 import { 
-  uploadDocument, checkJobStatus, listDocuments, getDocument, toggleStarDocument, deleteDocument, searchDocuments, getSettings, renameDocument
+  uploadDocument, checkJobStatus, listDocuments, getDocument, toggleStarDocument, deleteDocument, searchDocuments, getSettings, renameDocument, updateDocumentTags
 } from './services/api';
 
 const CATEGORIES = [
@@ -29,8 +29,9 @@ const CATEGORIES = [
 const SEARCH_PLACEHOLDERS = [
   "find my 12th marksheet...",
   "python course certificate...",
+  "computer science lecture notes...",
+  "physics quantum mechanics notes...",
   "how much was my electricity bill...",
-  "when does my passport expire...",
   "semester 6 transcript..."
 ];
 
@@ -65,9 +66,11 @@ export default function App() {
   const [verifiedPin, setVerifiedPin] = useState('1234');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Modal Editing Title State
+  // Modal Editing Title & Tag State
   const [isEditingModalTitle, setIsEditingModalTitle] = useState(false);
   const [modalTitleInput, setModalTitleInput] = useState('');
+  const [newModalTagInput, setNewModalTagInput] = useState('');
+  const [isAddingModalTag, setIsAddingModalTag] = useState(false);
 
   // Notifications
   const [toastMessage, setToastMessage] = useState(null);
@@ -83,6 +86,7 @@ export default function App() {
         setSelectedDocForPin(null);
         setIsSettingsOpen(false);
         setIsEditingModalTitle(false);
+        setIsAddingModalTag(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -117,7 +121,7 @@ export default function App() {
       });
     } catch (err) {
       console.error('Error fetching documents:', err);
-    } fontally {
+    } finally {
       if (!quiet) setIsLoading(false);
     }
   };
@@ -192,7 +196,7 @@ export default function App() {
     fetchDocs();
 
     if (newCount > 0) {
-      showToast(`Uploaded ${newCount} document(s). AI worker is analyzing OCR & categorization...`, 'success');
+      showToast(`Uploaded ${newCount} document(s). AI worker is analyzing OCR & subject categorization...`, 'success');
     }
   };
 
@@ -233,6 +237,33 @@ export default function App() {
       showToast(`Renamed file to '${newFilename}'`, 'success');
     } catch (err) {
       showToast('Could not rename file', 'error');
+    }
+  };
+
+  const handleUpdateTags = async (docId, newTags) => {
+    try {
+      await updateDocumentTags(docId, newTags);
+      setDocuments(prev => prev.map(d => d.id === docId ? { ...d, tags: newTags } : d));
+      if (pinVerifiedDoc && pinVerifiedDoc.id === docId) {
+        setPinVerifiedDoc(prev => ({ ...prev, tags: newTags }));
+      }
+      showToast('Updated subject tags.', 'success');
+    } catch (err) {
+      showToast('Could not update tags', 'error');
+    }
+  };
+
+  const handleTagClick = async (tagName) => {
+    setSearchQuery(tagName);
+    setIsLoading(true);
+    try {
+      const data = await searchDocuments(tagName);
+      setDocuments(data.results || []);
+      setTotalDocs(data.results ? data.results.length : 0);
+    } catch (err) {
+      fetchDocs();
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -450,7 +481,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Dedicated Master Categories Filter Bar (Includes Student Categories) */}
+        {/* Dedicated Master Categories Filter Bar */}
         <div className="w-full overflow-x-auto scroll-hide pb-2 border-b border-[#1C2620]/15">
           <div className="flex items-center gap-2 min-w-max">
             {CATEGORIES.map((cat) => (
@@ -588,6 +619,8 @@ export default function App() {
                   onToggleStar={handleToggleStar}
                   onDelete={handleDelete}
                   onRename={handleRename}
+                  onUpdateTags={handleUpdateTags}
+                  onTagClick={handleTagClick}
                 />
               ))}
             </div>
@@ -743,27 +776,79 @@ export default function App() {
                     </span>
                   </div>
 
-                  {/* 2-Sentence Synopsis */}
+                  {/* AI Study Summary */}
                   <div>
-                    <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-[#1C2620]/70 mb-1.5">AI 2-Sentence Synopsis</h4>
+                    <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-[#1C2620]/70 mb-1.5">AI Executive Study Summary</h4>
                     <p className="text-sm font-sans italic text-[#1C2620] bg-white p-4 rounded border border-[#1C2620]/15 leading-relaxed shadow-sm">
                       "{pinVerifiedDoc.summary || 'Synopsis unavailable.'}"
                     </p>
                   </div>
 
-                  {/* Tags */}
-                  {pinVerifiedDoc.tags && pinVerifiedDoc.tags.length > 0 && (
-                    <div>
-                      <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-[#1C2620]/70 mb-1.5">Tags</h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        {pinVerifiedDoc.tags.map((t, idx) => (
-                          <span key={idx} className="px-2.5 py-1 rounded bg-[#28493F]/10 text-[#28493F] font-mono text-xs uppercase font-semibold">
-                            #{t}
-                          </span>
-                        ))}
-                      </div>
+                  {/* Interactive Subject Tags */}
+                  <div>
+                    <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-[#1C2620]/70 mb-1.5">Subject Sub-Tags</h4>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {(pinVerifiedDoc.tags || []).map((t, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setPinVerifiedDoc(null);
+                            handleTagClick(t);
+                          }}
+                          className="px-2.5 py-1 rounded bg-[#28493F]/10 hover:bg-[#28493F]/20 text-[#28493F] font-mono text-xs uppercase font-semibold transition-colors"
+                        >
+                          #{t}
+                        </button>
+                      ))}
+
+                      {/* Add Tag Input in Modal */}
+                      {isAddingModalTag ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={newModalTagInput}
+                            onChange={(e) => setNewModalTagInput(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter') {
+                                const clean = newModalTagInput.trim().replace('#', '');
+                                if (clean) {
+                                  const updated = [...(pinVerifiedDoc.tags || []), clean];
+                                  await handleUpdateTags(pinVerifiedDoc.id, updated);
+                                }
+                                setNewModalTagInput('');
+                                setIsAddingModalTag(false);
+                              }
+                            }}
+                            placeholder="Add Subject..."
+                            autoFocus
+                            className="w-28 px-2 py-0.5 text-xs font-mono border border-[#28493F] rounded focus:outline-none"
+                          />
+                          <button
+                            onClick={async () => {
+                              const clean = newModalTagInput.trim().replace('#', '');
+                              if (clean) {
+                                const updated = [...(pinVerifiedDoc.tags || []), clean];
+                                await handleUpdateTags(pinVerifiedDoc.id, updated);
+                              }
+                              setNewModalTagInput('');
+                              setIsAddingModalTag(false);
+                            }}
+                            className="p-1 bg-[#28493F] text-white rounded"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setIsAddingModalTag(true)}
+                          className="px-2 py-0.5 rounded border border-[#1C2620]/20 text-[#1C2620]/70 hover:text-[#28493F] font-mono text-xs uppercase font-semibold flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Add Subject Tag</span>
+                        </button>
+                      )}
                     </div>
-                  )}
+                  </div>
 
                   {/* Extracted Metadata Schema Table */}
                   {pinVerifiedDoc.extracted_metadata && Object.keys(pinVerifiedDoc.extracted_metadata).length > 0 && (

@@ -2,7 +2,7 @@ import hashlib
 import asyncio
 import io
 import re
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, UploadFile, File, Header, HTTPException, Query, BackgroundTasks
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -21,6 +21,10 @@ class PinVerifyRequest(BaseModel):
 
 class RenameRequest(BaseModel):
     new_filename: str
+
+
+class TagsRequest(BaseModel):
+    tags: List[str]
 
 
 def create_minimal_pdf_bytes(title: str, text: str) -> bytes:
@@ -51,14 +55,12 @@ def ensure_valid_pdf_or_image_bytes(file_bytes: bytes, filename: str) -> (bytes,
     if not file_bytes or len(file_bytes) < 10:
         return create_minimal_pdf_bytes(filename, "DocVault Archival Payload"), "application/pdf"
 
-    # Check if already valid PDF
     if file_bytes.startswith(b'%PDF'):
         return file_bytes, "application/pdf"
 
     fn_lower = filename.lower()
     is_pdf_requested = fn_lower.endswith('.pdf') or not any(fn_lower.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp'])
 
-    # If PDF is expected (or file named .pdf), convert image bytes into a pristine PDF stream
     if is_pdf_requested:
         try:
             img = Image.open(io.BytesIO(file_bytes))
@@ -74,7 +76,6 @@ def ensure_valid_pdf_or_image_bytes(file_bytes: bytes, filename: str) -> (bytes,
             print(f"[DocumentFile] Image-to-PDF conversion note: {e}")
             return create_minimal_pdf_bytes(filename, "DocVault Archival Payload"), "application/pdf"
 
-    # Serve as native image if image extension is requested
     if file_bytes.startswith(b'\xff\xd8\xff') or fn_lower.endswith(('.jpg', '.jpeg')):
         return file_bytes, "image/jpeg"
     if file_bytes.startswith(b'\x89PNG') or fn_lower.endswith('.png'):
@@ -261,7 +262,6 @@ async def get_document_file(
     raw_file_bytes = db_service.get_file_content(document_id)
     fn = doc.get("suggested_filename") or doc.get("generated_filename") or doc.get("original_filename", "document.pdf")
     
-    # Ensure 100% valid PDF or image stream
     valid_bytes, mime = ensure_valid_pdf_or_image_bytes(raw_file_bytes, fn)
 
     return Response(
@@ -293,6 +293,21 @@ async def rename_document(
         "generated_filename": new_fn
     }
     updated = db_service.update_document(document_id, updates)
+    return updated
+
+
+@router.patch("/{document_id}/tags")
+async def update_document_tags(
+    document_id: str,
+    body: TagsRequest
+):
+    """Updates custom subject sub-tags array for a document."""
+    doc = db_service.get_document(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    clean_tags = [t.strip().replace('#', '') for t in body.tags if t.strip()]
+    updated = db_service.update_document(document_id, {"tags": clean_tags})
     return updated
 
 
