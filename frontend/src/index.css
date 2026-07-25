@@ -133,6 +133,11 @@
 }
 
 /* Hide scrollbar */
+.scroll-hide {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
 .scroll-hide::-webkit-scrollbar {
   display: none;
 }

@@ -343,13 +343,29 @@ export default function App() {
             </div>
 
             {/* Header Action Buttons (Mobile View) */}
-            <div className="flex md:hidden items-center gap-2">
+            <div className="flex md:hidden items-center gap-1.5 shrink-0">
               <button
                 onClick={() => setShowDropzone(!showDropzone)}
-                className="btn-primary flex items-center gap-1.5 px-3 py-1.5 rounded font-mono text-xs uppercase tracking-wider shadow-sm"
+                className="btn-primary flex items-center gap-1 px-2.5 py-1.5 rounded font-mono text-xs uppercase tracking-wider shadow-sm"
               >
                 <Upload className="w-3.5 h-3.5 text-white" />
                 <span>Upload</span>
+              </button>
+
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-1.5 text-[#1C2620] hover:bg-[#1C2620]/5 rounded border border-[#1C2620]/25 transition-colors bg-white"
+                title="Developer Settings"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                onClick={() => fetchDocs()}
+                className="p-1.5 text-[#1C2620] hover:bg-[#1C2620]/5 rounded border border-[#1C2620]/25 transition-colors bg-white"
+                title="Refresh Records"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-[#28493F]' : ''}`} />
               </button>
 
               {currentUser ? (
@@ -358,12 +374,12 @@ export default function App() {
                   className="p-1.5 text-[#B4402F] hover:bg-[#B4402F]/10 rounded border border-[#B4402F]/30"
                   title="Logout"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-3.5 h-3.5" />
                 </button>
               ) : (
                 <button
                   onClick={() => setIsLoginModalOpen(true)}
-                  className="btn-primary px-3 py-1.5 font-mono text-xs uppercase tracking-wider rounded"
+                  className="btn-primary px-2.5 py-1.5 font-mono text-xs uppercase tracking-wider rounded"
                 >
                   Sign In
                 </button>
@@ -608,7 +624,7 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
               {documents.map((doc) => (
                 <DocumentCard
                   key={doc.id || doc.original_filename}
