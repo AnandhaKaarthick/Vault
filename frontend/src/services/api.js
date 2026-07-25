@@ -35,7 +35,10 @@ api.interceptors.request.use((config) => {
 
 // Authentication APIs
 export const loginUser = async (username, password) => {
-  const response = await api.post('/auth/login', { username, password });
+  const response = await api.post('/auth/login', {
+    username_or_email: username,
+    password: password
+  });
   if (response.data && response.data.token) {
     localStorage.setItem('vault_token', response.data.token);
     localStorage.setItem('vault_user', JSON.stringify(response.data.user));
@@ -43,8 +46,17 @@ export const loginUser = async (username, password) => {
   return response.data;
 };
 
-export const registerUser = async (username, password, full_name, role) => {
-  const response = await api.post('/auth/register', { username, password, full_name, role });
+export const registerUser = async (username, email, password, full_name) => {
+  const response = await api.post('/auth/register', {
+    username,
+    email,
+    password,
+    full_name
+  });
+  if (response.data && response.data.token) {
+    localStorage.setItem('vault_token', response.data.token);
+    localStorage.setItem('vault_user', JSON.stringify(response.data.user));
+  }
   return response.data;
 };
 

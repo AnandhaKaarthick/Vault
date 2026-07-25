@@ -2,6 +2,20 @@ import React, { useState } from 'react';
 import { Lock, User, Mail, ShieldCheck, ArrowRight, Loader2, KeyRound, UserPlus, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import { loginUser, registerUser } from '../services/api';
 
+const extractErrorMessage = (err, fallback = 'Authentication failed.') => {
+  if (!err) return fallback;
+  if (typeof err === 'string') return err;
+  const detail = err.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map(item => typeof item === 'object' ? (item.msg || JSON.stringify(item)) : String(item)).join(', ');
+  }
+  if (typeof detail === 'object' && detail !== null) {
+    return detail.msg || JSON.stringify(detail);
+  }
+  return err.message || fallback;
+};
+
 export default function LoginModal({ onLoginSuccess, onClose }) {
   const [isRegister, setIsRegister] = useState(false);
   
@@ -43,8 +57,7 @@ export default function LoginModal({ onLoginSuccess, onClose }) {
         onLoginSuccess(res.user);
       }
     } catch (err) {
-      const msg = err.response?.data?.detail || err.message || 'Authentication failed.';
-      setError(msg);
+      setError(extractErrorMessage(err, 'Authentication failed.'));
     } finally {
       setIsLoading(false);
     }
@@ -59,7 +72,7 @@ export default function LoginModal({ onLoginSuccess, onClose }) {
       localStorage.setItem('vault_user', JSON.stringify(res.user));
       onLoginSuccess(res.user);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Demo login failed.');
+      setError(extractErrorMessage(err, 'Demo login failed.'));
     } finally {
       setIsLoading(false);
     }
@@ -86,7 +99,7 @@ export default function LoginModal({ onLoginSuccess, onClose }) {
           {error && (
             <div className="p-3 bg-red-50 border border-red-300 rounded text-red-800 text-xs font-mono flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <span>{typeof error === 'string' ? error : String(error)}</span>
             </div>
           )}
 
