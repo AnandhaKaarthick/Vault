@@ -153,7 +153,7 @@ export const updateSettings = async (settings) => {
 
 // Vector & Full-Text Search APIs
 export const searchDocumentsVector = async (query, limit = 10) => {
-  const response = await api.post('/search/vector', { query, limit });
+  const response = await api.post('/search', { query, limit });
   return response.data;
 };
 export const searchDocuments = searchDocumentsVector;
