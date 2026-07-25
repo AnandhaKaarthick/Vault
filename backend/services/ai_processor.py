@@ -23,6 +23,8 @@ except ImportError:
     pypdf = None
 
 CATEGORIES = [
+    "Academic & Marksheets",
+    "Certificates & Courses",
     "Tax",
     "Financial & Bank",
     "Identity & Official",
@@ -35,6 +37,59 @@ CATEGORIES = [
 
 # Smart Fuzzy Category Mapping
 CATEGORY_MAP = {
+    # Academic & Marksheets
+    "academic & marksheets": "Academic & Marksheets",
+    "academic": "Academic & Marksheets",
+    "marksheet": "Academic & Marksheets",
+    "mark sheet": "Academic & Marksheets",
+    "grade card": "Academic & Marksheets",
+    "grade sheet": "Academic & Marksheets",
+    "transcript": "Academic & Marksheets",
+    "diploma": "Academic & Marksheets",
+    "degree": "Academic & Marksheets",
+    "scorecard": "Academic & Marksheets",
+    "score card": "Academic & Marksheets",
+    "markcard": "Academic & Marksheets",
+    "hall ticket": "Academic & Marksheets",
+    "admit card": "Academic & Marksheets",
+    "fee receipt": "Academic & Marksheets",
+    "tuition fee": "Academic & Marksheets",
+    "bonafide": "Academic & Marksheets",
+    "semester": "Academic & Marksheets",
+    "examination": "Academic & Marksheets",
+    "university": "Academic & Marksheets",
+    "board": "Academic & Marksheets",
+    "school": "Academic & Marksheets",
+    "college": "Academic & Marksheets",
+    "cgpa": "Academic & Marksheets",
+    "percentage": "Academic & Marksheets",
+    "cbse": "Academic & Marksheets",
+    "sslc": "Academic & Marksheets",
+    "hsc": "Academic & Marksheets",
+    "neet": "Academic & Marksheets",
+    "jee": "Academic & Marksheets",
+    "gate": "Academic & Marksheets",
+
+    # Certificates & Courses
+    "certificates & courses": "Certificates & Courses",
+    "certificates": "Certificates & Courses",
+    "courses": "Certificates & Courses",
+    "internship": "Certificates & Courses",
+    "coursera": "Certificates & Courses",
+    "nptel": "Certificates & Courses",
+    "udemy": "Certificates & Courses",
+    "edx": "Certificates & Courses",
+    "hackathon": "Certificates & Courses",
+    "workshop": "Certificates & Courses",
+    "certification": "Certificates & Courses",
+    "course certificate": "Certificates & Courses",
+    "achievement": "Certificates & Courses",
+    "completion certificate": "Certificates & Courses",
+    "extracurricular": "Certificates & Courses",
+    "award": "Certificates & Courses",
+    "contest": "Certificates & Courses",
+    "webinar": "Certificates & Courses",
+
     # Tax
     "tax": "Tax",
     "itr": "Tax",
@@ -56,7 +111,7 @@ CATEGORY_MAP = {
     "salary": "Financial & Bank",
     "pay stub": "Financial & Bank",
 
-    # Identity & Official (Includes Photos, Signatures, Marksheets, Transcripts, Diplomas)
+    # Identity & Official
     "identity & official": "Identity & Official",
     "identity": "Identity & Official",
     "official": "Identity & Official",
@@ -78,25 +133,6 @@ CATEGORY_MAP = {
     "driving": "Identity & Official",
     "voter": "Identity & Official",
     "id card": "Identity & Official",
-    "certificate": "Identity & Official",
-    "marksheet": "Identity & Official",
-    "mark sheet": "Identity & Official",
-    "grade sheet": "Identity & Official",
-    "transcript": "Identity & Official",
-    "diploma": "Identity & Official",
-    "degree": "Identity & Official",
-    "scorecard": "Identity & Official",
-    "score card": "Identity & Official",
-    "markcard": "Identity & Official",
-    "academic": "Identity & Official",
-    "semester": "Identity & Official",
-    "examination": "Identity & Official",
-    "university": "Identity & Official",
-    "board": "Identity & Official",
-    "school": "Identity & Official",
-    "college": "Identity & Official",
-    "cgpa": "Identity & Official",
-    "percentage": "Identity & Official",
 
     # Utility & Bills
     "utility & bills": "Utility & Bills",
@@ -152,15 +188,15 @@ CATEGORY_MAP = {
 class AIProcessor:
     """
     Multimodal AI Processing Engine using NVIDIA NIM APIs:
-    - Vision Model: meta/llama-3.2-11b-vision-instruct (OCR + Photos + Signatures + Marksheets)
-    - Text Model: google/gemma-2-2b-it (Document & Asset Structuring + Targeted Entity Parsing)
+    - Vision Model: meta/llama-3.2-11b-vision-instruct (OCR + Vision + Student Documents)
+    - Text Model: google/gemma-2-2b-it (Document & Student Asset Structuring + Sub-Tagging)
     - Embeddings: nvidia/llama-3.2-nv-embedqa-1b-v2
     """
 
     @classmethod
     def preprocess_blurry_image(cls, file_bytes: bytes) -> bytes:
         """
-        Applies multi-stage image restoration for documents, photos, signatures, and marksheets:
+        Applies multi-stage image restoration for documents, marksheets, photos, and signatures:
         1. Auto-contrast histogram expansion.
         2. Adaptive Contrast Enhancement (1.75x).
         3. Unsharp Masking (radius=2, percent=175, threshold=2).
@@ -188,7 +224,7 @@ class AIProcessor:
 
     @staticmethod
     def _normalize_category(category: str, filename: str = "", text: str = "") -> str:
-        """Normalizes extracted LLM category string into one of 8 master categories."""
+        """Normalizes extracted LLM category string into one of 10 master categories."""
         if not category:
             cat_candidate = "Other / Unsorted"
         else:
@@ -234,7 +270,7 @@ class AIProcessor:
 
     @classmethod
     def _apply_deterministic_regex_fallback(cls, filename: str, extracted_text: str) -> Dict[str, Any]:
-        """Offline deterministic rule engine for documents, user photos, signatures, and marksheets."""
+        """Offline deterministic rule engine for documents, student marksheets, certificates, and photos."""
         fn_lower = filename.lower()
         text_lower = extracted_text.lower()
         combined = fn_lower + " " + text_lower
@@ -245,36 +281,44 @@ class AIProcessor:
         vendor = "Vault_Archive"
         doc_type = "Record"
         due_date = None
-        period = datetime.date.today().strftime("%Y-%m")
+        period = datetime.date.today().strftime("%Y")
         amount = None
         currency = "INR" if ("inr" in combined or "₹" in combined or "rs" in combined) else "USD"
         account_no = None
         doc_date = datetime.date.today().isoformat()
         tags = ["Archival", "Record"]
 
-        # 1. User Photo / Passport Picture Check
-        if any(k in combined for k in ["photo", "portrait", "passport photo", "profile", "picture", "face", "avatar"]):
+        # 1. Academic & Marksheets Check
+        if any(k in combined for k in ["marksheet", "mark sheet", "transcript", "grade sheet", "cgpa", "scorecard", "degree", "diploma", "cbse", "sslc", "hsc", "hall ticket", "admit card", "fee receipt", "bonafide"]):
+            category = "Academic & Marksheets"
+            doc_type = "Marksheet" if "marksheet" in combined else "HallTicket" if "ticket" in combined else "Transcript"
+            vendor = "State_Board_or_University"
+            summary = "Official academic marksheet, transcript, or exam document detailing student credentials."
+            tags = ["Academic", "Marksheet", "Official"]
+
+        # 2. Certificates & Courses Check
+        elif any(k in combined for k in ["internship", "coursera", "nptel", "udemy", "hackathon", "workshop", "certificate", "certification", "achievement"]):
+            category = "Certificates & Courses"
+            doc_type = "Internship_Certificate" if "internship" in combined else "Online_Course_Certificate" if any(x in combined for x in ["coursera", "nptel", "udemy"]) else "Achievement_Certificate"
+            vendor = "Course_Platform_or_Organization"
+            summary = "Verified course completion, internship experience, or achievement certification."
+            tags = ["Certificate", "Course", "Skills"]
+
+        # 3. User Photo / Passport Picture Check
+        elif any(k in combined for k in ["photo", "portrait", "passport photo", "profile", "picture", "face"]):
             category = "Identity & Official"
             doc_type = "Passport_Photo_Record"
             vendor = "User_Identity_Media"
             summary = "Official passport-size portrait photo or user identity photograph record."
             tags = ["Photo", "Identity", "Portrait"]
 
-        # 2. Specimen Signature Check
+        # 4. Specimen Signature Check
         elif any(k in combined for k in ["signature", "sign", "autograph", "specimen"]):
             category = "Identity & Official"
             doc_type = "Specimen_Signature"
             vendor = "User_Identity_Media"
             summary = "Digitized specimen signature asset used for official verification and authentication."
             tags = ["Signature", "Authentication", "Official"]
-
-        # 3. Academic Marksheet / Certificate Check
-        elif any(k in combined for k in ["marksheet", "mark sheet", "transcript", "grade sheet", "cgpa", "scorecard", "degree", "diploma", "cbse", "sslc", "hsc"]):
-            category = "Identity & Official"
-            doc_type = "Academic_Marksheet"
-            vendor = "State_Board_or_University"
-            summary = "Official academic marksheet / transcript showing subject grades, marks, and candidate credentials."
-            tags = ["Academic", "Marksheet", "Official"]
 
         elif category == "Tax":
             doc_type = "Tax_Document"
@@ -300,29 +344,11 @@ class AIProcessor:
             summary = "Official government-issued identity proof requiring step-up PIN verification."
             tags = ["Identity", "Official", "Government"]
 
-        elif category == "Travel & Tickets":
-            doc_type = "BoardingPass" if "boarding" in combined else "Travel_Ticket"
-            vendor = "IndiGo" if "indigo" in combined else "Travel_Carrier"
-            summary = "Travel booking confirmation and itinerary details."
-            tags = ["Travel", "Ticket", "Itinerary"]
-
-        elif category == "Medical & Health":
-            doc_type = "Medical_Report"
-            vendor = "City_Health_Hospital"
-            summary = "Medical diagnostic report and health assessment summary."
-            tags = ["Medical", "Health", "Report"]
-
-        elif category == "Receipts & Invoices":
-            doc_type = "Retail_Receipt"
-            vendor = "Amazon" if "amazon" in combined else "Retail_Store"
-            summary = "Retail purchase receipt showing transaction totals and vendor detail."
-            tags = ["Receipt", "Invoice", "Purchase"]
-
         # ISO Dates Regex
         dates_found = re.findall(r'\b20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b', extracted_text)
         if dates_found:
             due_date = dates_found[0].replace('/', '-')
-            period = due_date[:7]
+            period = due_date[:4]
 
         # Roll Number / Account Regex
         roll_match = re.search(r'\b(?:roll|reg|registration|account|consumer|pnr|id|no)[\s\:\#]*([A-Z0-9\-]{5,15})\b', extracted_text, re.IGNORECASE)
@@ -353,10 +379,10 @@ class AIProcessor:
     @classmethod
     async def process_document(cls, filename: str, file_bytes: bytes, mime_type: str) -> Dict[str, Any]:
         """
-        Executes multimodal analysis for Documents, Marksheets, Passport Photos, and Signatures:
+        Executes multimodal analysis for Student Documents, Marksheets, Certificates, Photos, and Signatures:
         1. Preprocesses image bytes for blur restoration and edge sharpening.
         2. Calls NVIDIA Vision NIM (meta/llama-3.2-11b-vision-instruct).
-        3. Calls Gemma 2B (google/gemma-2-2b-it) for JSON structuring and asset categorization.
+        3. Calls Gemma 2B (google/gemma-2-2b-it) for JSON structuring, student sub-tagging, and naming standardization.
         """
         extracted_text = ""
         is_image = mime_type.startswith("image/") or filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))
@@ -375,9 +401,9 @@ class AIProcessor:
             "Content-Type": "application/json"
         }
 
-        # Step 1: Multimodal Vision Model (Documents, Marksheets, Photos, Signatures)
+        # Step 1: Multimodal Vision Model OCR & Asset Visual Inspection
         if is_image:
-            print(f"[AIProcessor] Preprocessing asset '{filename}' for blur restoration & edge sharpening...")
+            print(f"[AIProcessor] Preprocessing student asset '{filename}' for blur restoration & edge sharpening...")
             enhanced_bytes = cls.preprocess_blurry_image(file_bytes)
             
             b64_file = base64.b64encode(enhanced_bytes).decode('utf-8')
@@ -385,9 +411,9 @@ class AIProcessor:
 
             ocr_prompt = (
                 "Examine this image upload thoroughly. "
-                "1. If it is a User Passport Photo or Portrait Picture, describe the visual person portrait, background, and identify it as 'User Passport/Portrait Photograph' under 'Identity & Official'. "
-                "2. If it is a Digitized Specimen Signature or Sign Scan, identify it as 'Digitized Specimen Signature' under 'Identity & Official'. "
-                "3. If it is an Academic Marksheet, Grade Card, or Transcript, transcribe all candidate/student names, roll numbers, subject marks, CGPA, percentage, board/university names, and issue dates. "
+                "1. If it is an Academic Marksheet, Grade Card, Transcript, Hall Ticket, Admit Card, or Fee Receipt, transcribe all candidate/student names, roll numbers, subject marks, CGPA, percentage, board/university names, and issue dates. "
+                "2. If it is an Internship Certificate, Online Course Certificate (Coursera, NPTEL, Udemy), Hackathon Award, or Workshop Certificate, transcribe issuing organization, course/event title, candidate name, and completion date. "
+                "3. If it is a User Passport Photo or Portrait, identify it as 'User Passport/Portrait Photograph' under 'Identity & Official'. "
                 "4. For general documents, bills, receipts, or certificates, transcribe all visible text, dates, monetary amounts, and reference numbers accurately."
             )
 
@@ -422,7 +448,7 @@ class AIProcessor:
             extracted_text = cls._extract_text_from_pdf_or_bytes(filename, file_bytes)
 
         # Step 2: Gemma 2B Structuring & Targeted Entity Parsing
-        print(f"[AIProcessor] Invoking NVIDIA Text NIM ({NVIDIA_TEXT_MODEL}) for Gemma 2B asset structuring...")
+        print(f"[AIProcessor] Invoking NVIDIA Text NIM ({NVIDIA_TEXT_MODEL}) for Gemma 2B student asset structuring...")
         struct_prompt = f"""
 Analyze the following extracted text/description thoroughly and respond strictly with a valid JSON object matching the schema below. Strip any markdown codeblock tags.
 
@@ -431,28 +457,31 @@ Extracted Vision Analysis:
 {extracted_text[:3500]}
 
 Categories available:
-["Tax", "Financial & Bank", "Identity & Official", "Utility & Bills", "Travel & Tickets", "Medical & Health", "Receipts & Invoices", "Other / Unsorted"]
+["Academic & Marksheets", "Certificates & Courses", "Tax", "Financial & Bank", "Identity & Official", "Utility & Bills", "Travel & Tickets", "Medical & Health", "Receipts & Invoices", "Other / Unsorted"]
 
-Category Rules:
-- User Photos, Passport Pictures, Portrait Images belong under "Identity & Official" (e.g. User_Passport_Photo.jpg).
-- Specimen Signatures and Sign Scans belong under "Identity & Official" (e.g. Specimen_Signature.png).
-- Academic Marksheets, Transcripts, Grade Cards, Diplomas, Board Certificates belong under "Identity & Official" (e.g. CBSE_Marksheet_2024.jpg).
+Category & Sub-Tag Rules:
+- Marksheets, Transcripts, Grade Cards, Board Exams, Hall Tickets, Admit Cards, Tuition Fee Receipts, Bonafide Certificates belong under "Academic & Marksheets".
+  Assign relevant sub-tags: ["Marksheet"], ["Transcript"], ["HallTicket"], ["FeeReceipt"], ["Admission"], or ["Notes"].
+- Internship Certificates, Online Course Certificates (NPTEL, Coursera, Udemy), Hackathons, Workshop Certificates, Awards belong under "Certificates & Courses".
+  Assign relevant sub-tags: ["Internship"], ["OnlineCourse"], ["Hackathon"], ["Workshop"], or ["Achievement"].
+- User Photos & Specimen Signatures belong under "Identity & Official".
 
 Naming pattern required for suggested_filename:
-[Vendor_or_Issuer]_[Document_Type]_[Period/Date].[ext] (e.g., User_Passport_Photo_2026.jpg, Specimen_Signature_Record.png, CBSE_Marksheet_2024.jpg)
+- Academic: [Board_or_University]_[Document_Type]_[Year].[ext] (e.g., CBSE_Marksheet_2024.jpg, Anna_University_Transcript_2025.pdf, NEET_Hall_Ticket_2026.pdf)
+- Certificates: [Organization_or_Platform]_[Certificate_Type]_[Year].[ext] (e.g., Google_AI_Internship_Certificate_2025.pdf, NPTEL_Python_Course_Certificate_2024.pdf)
 
 JSON Schema required:
 {{
   "category": "<one of the categories above>",
-  "vendor_or_issuer": "<issuing authority, institution, or User_Identity_Media>",
+  "vendor_or_issuer": "<issuing authority, university, board, platform, or organization>",
   "suggested_filename": "<standardized_name_pattern.jpg>",
-  "summary": "<exactly 2 sentences summarizing the upload details, visual contents, purpose, and key attributes>",
+  "summary": "<exactly 2 sentences summarizing the upload details, visual contents, academic purpose, and key attributes>",
   "metadata": {{
      "total_amount": <number or null>,
      "currency": "<INR/USD/EUR>",
      "document_date": "<YYYY-MM-DD or null>",
      "expiration_or_due_date": "<YYYY-MM-DD or null>",
-     "account_number": "<roll number, ID number, or null>"
+     "account_number": "<roll number, registration number, ID, or null>"
   }},
   "tags": ["<tag1>", "<tag2>", "<tag3>"]
 }}
@@ -500,7 +529,6 @@ JSON Schema required:
         except Exception as e:
             print(f"[AIProcessor] Text NIM exception: {e}")
 
-        # Fallback if LLM parsing fails
         fallback_analysis = cls._apply_deterministic_regex_fallback(filename, extracted_text)
         full_text = f"{fallback_analysis['suggested_filename']} {fallback_analysis['category']} {fallback_analysis['summary']}"
         fallback_analysis["embedding"] = cls._generate_fallback_embedding(full_text)

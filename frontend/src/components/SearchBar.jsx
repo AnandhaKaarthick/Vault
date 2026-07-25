@@ -1,13 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, Star, Clock } from 'lucide-react';
 
-const CATEGORIES = ["All", "Tax", "Medical & Health", "Utility & Bills", "Travel & Tickets", "Receipts & Invoices", "Identity & Official"];
+const CATEGORIES = [
+  "All",
+  "Academic & Marksheets",
+  "Certificates & Courses",
+  "Tax",
+  "Financial & Bank",
+  "Identity & Official",
+  "Utility & Bills",
+  "Travel & Tickets",
+  "Medical & Health",
+  "Receipts & Invoices",
+  "Other / Unsorted"
+];
 
 const PLACEHOLDERS = [
+  "find my 12th marksheet...",
+  "python course certificate...",
   "how much was my electricity bill...",
   "when does my passport expire...",
-  "find receipts from last December...",
-  "tax return for 2025..."
+  "semester 6 transcript..."
 ];
 
 export default function SearchBar({

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { 
-  Lock, Star, Trash2, Zap, FileText, Loader2, Tag, Edit2, Check, X
+  Lock, Star, Trash2, Zap, FileText, Loader2, Tag, Edit2, Check, X, GraduationCap, Award
 } from 'lucide-react';
 
 const STAMP_CLASSES = {
+  "Academic & Marksheets": 'stamp-academic',
+  "Certificates & Courses": 'stamp-certificates',
   "Tax": 'stamp-tax',
   "Financial & Bank": 'stamp-medical',
   "Identity & Official": 'stamp-identity',
@@ -55,8 +57,10 @@ export default function DocumentCard({
     <div className="group archival-card p-6 relative flex flex-col h-full rounded-lg transition-all duration-200 shadow-sm bg-white border border-ink/10 hover:border-ledger">
       {/* Header Row: Stamp Badge & Actions */}
       <div className="flex justify-between items-start mb-4">
-        <div className={`stamp-badge ${stampClass} self-start`}>
+        <div className={`stamp-badge ${stampClass} self-start flex items-center gap-1.5`}>
           {isSensitive && <Lock className="w-3.5 h-3.5" />}
+          {category.includes('Academic') && <GraduationCap className="w-3.5 h-3.5" />}
+          {category.includes('Certificates') && <Award className="w-3.5 h-3.5" />}
           {category.includes('Utility') && <Zap className="w-3.5 h-3.5" />}
           <span>{category}</span>
         </div>
@@ -168,7 +172,7 @@ export default function DocumentCard({
         {/* Tags Array */}
         {tagsList.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
-            {tagsList.slice(0, 3).map((tag, idx) => (
+            {tagsList.slice(0, 4).map((tag, idx) => (
               <span key={idx} className="px-2 py-0.5 rounded bg-ledger/10 text-ledger font-mono text-[10px] uppercase font-semibold">
                 #{tag}
               </span>

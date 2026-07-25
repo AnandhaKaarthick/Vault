@@ -14,6 +14,8 @@ import {
 
 const CATEGORIES = [
   "All",
+  "Academic & Marksheets",
+  "Certificates & Courses",
   "Tax",
   "Financial & Bank",
   "Identity & Official",
@@ -25,10 +27,11 @@ const CATEGORIES = [
 ];
 
 const SEARCH_PLACEHOLDERS = [
+  "find my 12th marksheet...",
+  "python course certificate...",
   "how much was my electricity bill...",
   "when does my passport expire...",
-  "find receipts from last December...",
-  "tax return for 2025..."
+  "semester 6 transcript..."
 ];
 
 export default function App() {
@@ -114,7 +117,7 @@ export default function App() {
       });
     } catch (err) {
       console.error('Error fetching documents:', err);
-    } finally {
+    } fontally {
       if (!quiet) setIsLoading(false);
     }
   };
@@ -447,7 +450,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Dedicated 8 Master Categories Filter Bar */}
+        {/* Dedicated Master Categories Filter Bar (Includes Student Categories) */}
         <div className="w-full overflow-x-auto scroll-hide pb-2 border-b border-[#1C2620]/15">
           <div className="flex items-center gap-2 min-w-max">
             {CATEGORIES.map((cat) => (

@@ -1,7 +1,7 @@
 -- Enable the pgvector extension to work with embedding vectors
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Create documents table with exact 8 Master Categories constraint
+-- Create documents table with exact Master Categories constraint (Includes Student Categories)
 CREATE TABLE IF NOT EXISTS public.documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.documents (
     original_filename TEXT NOT NULL,
     generated_filename TEXT NOT NULL,
     category TEXT NOT NULL CHECK (category IN (
+        'Academic & Marksheets', 'Certificates & Courses',
         'Tax', 'Financial & Bank', 'Identity & Official', 
         'Utility & Bills', 'Travel & Tickets', 'Medical & Health', 
         'Receipts & Invoices', 'Other / Unsorted'
