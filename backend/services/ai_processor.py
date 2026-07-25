@@ -658,12 +658,12 @@ JSON Schema required:
 
     @staticmethod
     def _generate_fallback_embedding(text: str) -> List[float]:
-        """Generates deterministic 128-dim vector embedding locally."""
+        """Generates deterministic 1024-dim vector embedding locally matching NVIDIA NIM vector size."""
         words = text.lower().split()
-        vector = [0.0] * 128
+        vector = [0.0] * 1024
         for w in words:
             h = int(hashlib.md5(w.encode('utf-8')).hexdigest(), 16)
-            idx = h % 128
+            idx = h % 1024
             vector[idx] += 1.0
 
         norm = math.sqrt(sum(x * x for x in vector))
