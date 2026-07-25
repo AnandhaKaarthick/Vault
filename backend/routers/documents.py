@@ -220,14 +220,10 @@ async def get_document_file(
     effective_pin = pin or x_security_pin
     if SecurityService.is_sensitive(doc.get("category", "")):
         if not SecurityService.verify_pin(effective_pin):
-            if not effective_pin:
-                effective_pin = "1234"
-                
-            if not SecurityService.verify_pin(effective_pin):
-                raise HTTPException(
-                    status_code=403,
-                    detail="Step-up PIN authentication required to access this sensitive document."
-                )
+            raise HTTPException(
+                status_code=403,
+                detail="Step-up PIN authentication required to access this sensitive document."
+            )
 
     raw_file_bytes = db_service.get_file_content(document_id) or b""
     fn = doc.get("suggested_filename") or doc.get("generated_filename") or doc.get("original_filename", "document")

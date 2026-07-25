@@ -1,6 +1,32 @@
-# Intelligent Catch-All Document Vault (DocVault)
+# 🛡️ DocVault AI — Smart Document Vault & Student Academic Hub
 
-DocVault is an AI-powered document vault built with **React.js (Vite)** on the frontend and **Python (FastAPI)** on the backend. It leverages **NVIDIA Developer Platform NIM APIs** (`meta/llama-3.2-11b-vision-instruct` + `google/gemma-2-9b-it`) for OCR, auto-categorization, metadata extraction, auto-renaming, and vector embeddings, backed by **Supabase** (PostgreSQL + `pgvector`).
+**DocVault AI** is a full-stack, AI-powered document intake, auto-organization, vector search, and academic asset management system. It leverages **NVIDIA NIM Multimodal Vision & Text Models** (`meta/llama-3.2-11b-vision-instruct` + `google/gemma-2-2b-it`) and **1024-dimensional Vector Embeddings** (`nvidia/llama-3.2-nv-embedqa-1b-v2`) backed by **Supabase PostgreSQL (`pgvector`)** and an **Offline Deterministic Fallback Engine**.
+
+---
+
+## 🔥 Key Technical Highlights
+
+- **🧠 Multimodal AI Vision OCR:** Multi-stage image restoration (auto-contrast histogram expansion, unsharp masking, edge sharpening) prior to vision OCR.
+- **🎓 Student Academic Hub:** Differentiates Hall Tickets / Admit Cards vs Marksheets / Transcripts, attaches subject sub-tagging (`#ComputerScience`, `#Physics`, `#Mathematics`), and generates 2-sentence executive study summaries.
+- **🏷️ Smart Relative Auto-Renaming & Format Lock:** Auto-converts opaque codes (*e.g., `NOC26CS84S385800358.pdf` ➔ `NPTEL_ComputerScience_HallTicket_2026.pdf`*) while strictly preserving 100% original file extensions & binary streams.
+- **⚡ Plain-English Vector RAG Search:** 1024-dim cosine similarity vector search over document content, summaries, and tags.
+- **🔐 Step-Up Security PIN Auth:** PBKDF2-HMAC-SHA256 (100,000 iterations) with constant-time digest comparison (`hmac.compare_digest`) for sensitive financial, tax, and identity documents.
+- **⚙️ Offline Fallback Engine:** Fully operational without API keys using deterministic regex classification and local vector similarity.
+
+---
+
+## 🏗️ Master Category Hierarchy (10 Categories)
+
+1. `Academic & Marksheets` (Hall Tickets, Marksheets, Lecture Notes)
+2. `Certificates & Courses` (Internship Certificates, Coursera/NPTEL, Achievements)
+3. `Tax` (ITR, Form 16, Assessment Records)
+4. `Financial & Bank` (Bank Statements, Pay Stubs, Credit Ledger)
+5. `Identity & Official` (Aadhaar, Passport Photos, Specimen Signatures)
+6. `Utility & Bills` (Electricity, Broadband, Water)
+7. `Travel & Tickets` (Flight Bookings, Train Tickets, PNR Records)
+8. `Medical & Health` (Lab Reports, Doctor Prescriptions)
+9. `Receipts & Invoices` (Retail Store Receipts, Amazon/Flipkart Invoices)
+10. `Other / Unsorted`
 
 ---
 
@@ -8,75 +34,63 @@ DocVault is an AI-powered document vault built with **React.js (Vite)** on the f
 
 ### 1. Backend Setup (Python FastAPI)
 
-1. Open terminal and navigate to the root directory:
+1. Open terminal and navigate to the project directory:
    ```bash
    cd mobdocsto
    ```
 
-2. Create a Python virtual environment (optional but recommended):
-   ```bash
-   python -m venv venv`
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS/Linux:
-   source venv/bin/activate
-   ```
-
-3. Install backend dependencies:
+2. Install backend dependencies:
    ```bash
    pip install -r backend/requirements.txt
    ```
 
-4. Start the FastAPI server:
+3. Start the FastAPI server:
    ```bash
    python -m uvicorn backend.main:app --reload --port 8000
    ```
-   *The backend API will run at `http://localhost:8000` (Docs available at `http://localhost:8000/docs`).*
+   *Backend API runs at `http://localhost:8000` (Interactive Swagger Docs at `http://localhost:8000/docs`).*
 
 ---
 
 ### 2. Frontend Setup (React.js + Vite)
 
-1. Open a second terminal window and navigate to the `frontend/` directory:
+1. Open a second terminal window and navigate to `frontend/`:
    ```bash
    cd mobdocsto/frontend
    ```
 
-2. Install Node.js dependencies:
+2. Install Node dependencies:
    ```bash
    npm install
    ```
 
-3. Start the Vite development server:
+3. Start Vite dev server:
    ```bash
    npm run dev
    ```
-   *The React app will open at `http://localhost:5173`.*
+   *React Web App opens at `http://localhost:5173`.*
 
 ---
 
-## 🔑 Environment Configuration (Optional)
+## 🔑 Environment Configuration
 
-Create a `.env` file in the root workspace or in `backend/`:
+Create a `.env` file in `backend/` or workspace root:
 
 ```env
-# NVIDIA Developer Platform Key (https://build.nvidia.com)
-NVIDIA_API_KEY=nvapi-your-key-here
+# NVIDIA NIM APIs
+NVIDIA_API_KEY=your_nvidia_nim_api_key
 
-# Supabase Credentials (optional - app automatically uses local in-memory fallback if omitted)
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-supabase-service-role-key
+# Supabase PostgreSQL + pgvector
+SUPABASE_URL=https://your-supabase-project.supabase.co
+SUPABASE_KEY=your_supabase_anon_or_service_role_key
 ```
-
-*Note: If no API key is provided, DocVault runs seamlessly using its built-in offline smart extraction engine for local development testing!*
 
 ---
 
-## 🛡️ Key Features Implemented
+## 🛠️ Tech Stack & Architecture
 
-- **Drag-and-Drop Batch Upload:** Responsive upload zone with instant `{ job_id }` response.
-- **Server-Side SHA-256 Deduplication:** Computes file hashes server-side to detect duplicates even if client is bypassed.
-- **NVIDIA NIM Multimodal AI:** Performs vision OCR, JSON schema categorization into `Tax`, `Medical`, `Utility`, `Travel`, `Receipts`, `Identity`, and `General`, auto-renaming, and 2-sentence summarization.
-- **Plain-English Semantic Search:** Vector similarity search over document embeddings.
-- **Step-Up Security PIN:** 4-digit PIN modal protection for sensitive `Identity` and `Financial` categories (Default PIN: `1234`).
-- **Expiration Alerts:** Dashboard banner notifications & "Expiring Soon" filter chip.
+- **Frontend:** React.js, Modern Responsive Glassmorphism Design System, Lucide Icons, Canvas PDF Renderer
+- **Backend:** Python 3.10+, FastAPI, PyPDF, Pillow (PIL), HTTPX
+- **Database:** Supabase PostgreSQL + `pgvector` (Vector Dimension: 1024)
+- **AI Infrastructure:** NVIDIA Developer Platform NIM APIs
+- **Cryptography:** PBKDF2-HMAC-SHA256 (100,000 iterations)

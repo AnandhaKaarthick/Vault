@@ -4,50 +4,52 @@ import uuid
 import datetime
 import math
 from typing import Dict, Any, List, Optional
-from backend.config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_STORAGE_BUCKET
+from backend.config import (
+    SUPABASE_URL,
+    SUPABASE_KEY
+)
+
+STORAGE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "storage"))
+DB_JSON_PATH = os.path.join(STORAGE_DIR, "db.json")
 
 try:
     from supabase import create_client, Client
-    HAS_SUPABASE_SDK = True
 except ImportError:
-    HAS_SUPABASE_SDK = False
-
-STORAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage")
-os.makedirs(STORAGE_DIR, exist_ok=True)
-DB_JSON_PATH = os.path.join(STORAGE_DIR, "db.json")
+    create_client = None
+    Client = None
 
 
 class SupabaseService:
     """
-    Data & Storage Management Layer with Multi-User Data Isolation:
-    Persists document records to local disk (`backend/storage/db.json`) and binary files to `backend/storage/{id}.bin`.
-    Filters documents strictly by user_id.
+    Hybrid Storage Engine:
+    - Primary: Supabase PostgreSQL + pgvector (vector dimension: 1024)
+    - Local Disk Fallback: JSON metadata database + disk binary storage under storage/{doc_id}.bin
     """
-    def __init__(self):
-        self.is_connected = False
-        self.client: Optional[Any] = None
 
-        if HAS_SUPABASE_SDK and SUPABASE_URL and SUPABASE_KEY and "supabase.co" in SUPABASE_URL:
+    def __init__(self):
+        self.client: Optional[Client] = None
+        self.is_connected: bool = False
+
+        self._memory_documents: Dict[str, Dict[str, Any]] = {}
+        self._memory_jobs: Dict[str, Dict[str, Any]] = {}
+        self._memory_embeddings: Dict[str, List[float]] = {}
+        self._memory_files: Dict[str, bytes] = {}
+
+        self._load_local_db()
+        self._init_supabase()
+
+    def _init_supabase(self):
+        if create_client and SUPABASE_URL and SUPABASE_KEY and "your-supabase" not in SUPABASE_URL:
             try:
                 self.client = create_client(SUPABASE_URL, SUPABASE_KEY)
                 self.is_connected = True
                 print("[SupabaseService] Successfully connected to live Supabase backend.")
             except Exception as e:
-                print(f"[SupabaseService] Could not initialize Supabase client: {e}. Falling back to local store.")
+                print(f"[SupabaseService] Remote connection warning: {e}. Falling back to local disk storage.")
         else:
-            print("[SupabaseService] Supabase URL/Key unconfigured. Running with local store.")
-
-        # In-memory stores
-        self._memory_documents: Dict[str, Dict[str, Any]] = {}
-        self._memory_embeddings: Dict[str, List[float]] = {}
-        self._memory_jobs: Dict[str, Dict[str, Any]] = {}
-        self._memory_files: Dict[str, bytes] = {}
-
-        # Load persisted JSON DB on startup
-        self._load_local_db()
+            print("[SupabaseService] Supabase not configured. Operating in local storage mode.")
 
     def _load_local_db(self):
-        """Loads persisted documents and jobs from backend/storage/db.json."""
         if os.path.exists(DB_JSON_PATH):
             try:
                 with open(DB_JSON_PATH, "r", encoding="utf-8") as f:
@@ -55,12 +57,12 @@ class SupabaseService:
                     self._memory_documents = data.get("documents", {})
                     self._memory_jobs = data.get("jobs", {})
                     self._memory_embeddings = data.get("embeddings", {})
-                print(f"[SupabaseService] Loaded {len(self._memory_documents)} documents from local disk DB.")
+                    print(f"[SupabaseService] Loaded {len(self._memory_documents)} documents from local disk DB.")
             except Exception as e:
-                print(f"[SupabaseService] Error loading local DB: {e}")
+                print(f"[SupabaseService] Error reading local db file: {e}")
 
     def _save_local_db(self):
-        """Persists documents and jobs to backend/storage/db.json."""
+        os.makedirs(STORAGE_DIR, exist_ok=True)
         try:
             with open(DB_JSON_PATH, "w", encoding="utf-8") as f:
                 json.dump({
@@ -69,74 +71,76 @@ class SupabaseService:
                     "embeddings": self._memory_embeddings
                 }, f, indent=2)
         except Exception as e:
-            print(f"[SupabaseService] Error saving local DB: {e}")
+            print(f"[SupabaseService] Error saving local DB file: {e}")
+
+    def create_document(self, doc_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Creates a new document record."""
+        doc_id = str(uuid.uuid4())
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        
+        doc = {
+            "id": doc_id,
+            "user_id": doc_data.get("user_id", "usr_anandha"),
+            "original_filename": doc_data.get("original_filename", "unnamed"),
+            "generated_filename": doc_data.get("generated_filename", doc_data.get("original_filename", "unnamed")),
+            "suggested_filename": doc_data.get("suggested_filename", doc_data.get("original_filename", "unnamed")),
+            "category": doc_data.get("category", "Other / Unsorted"),
+            "vendor_or_issuer": doc_data.get("vendor_or_issuer", "Unknown"),
+            "summary": doc_data.get("summary", ""),
+            "extracted_metadata": doc_data.get("extracted_metadata", {}),
+            "expiry_date": doc_data.get("expiry_date"),
+            "file_hash": doc_data.get("file_hash"),
+            "is_starred": doc_data.get("is_starred", False),
+            "tags": doc_data.get("tags", []),
+            "status": doc_data.get("status", "pending"),
+            "created_at": now,
+            "updated_at": now
+        }
+
+        self._memory_documents[doc_id] = doc
+        self._save_local_db()
+
+        if self.is_connected and self.client:
+            try:
+                self.client.table("documents").insert(doc).execute()
+            except Exception as e:
+                print(f"[SupabaseService] Remote insert warning: {e}")
+
+        return doc
+
+    def get_document(self, doc_id: str) -> Optional[Dict[str, Any]]:
+        """Gets single document record by ID."""
+        if doc_id in self._memory_documents:
+            return self._memory_documents[doc_id]
+
+        if self.is_connected and self.client:
+            try:
+                res = self.client.table("documents").select("*").eq("id", doc_id).single().execute()
+                if res.data:
+                    return res.data
+            except Exception:
+                pass
+        return None
 
     def get_document_by_hash(self, file_hash: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Queries for existing document matching server-computed SHA-256 hash for a specific user."""
+        """Checks for existing document matching sha256 file_hash."""
+        for doc in self._memory_documents.values():
+            if doc.get("file_hash") == file_hash:
+                if user_id and doc.get("user_id") and doc.get("user_id") != user_id:
+                    continue
+                return doc
+
         if self.is_connected and self.client:
             try:
                 q = self.client.table("documents").select("*").eq("file_hash", file_hash)
                 if user_id:
                     q = q.eq("user_id", user_id)
                 res = q.execute()
-                if res.data and len(res.data) > 0:
-                    return res.data[0]
-            except Exception:
-                pass
-
-        for doc in self._memory_documents.values():
-            if doc.get("file_hash") == file_hash:
-                if not user_id or doc.get("user_id") == user_id:
-                    return doc
-        return None
-
-    def create_document(self, doc_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Creates a document record."""
-        doc_id = doc_data.get("id") or str(uuid.uuid4())
-        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        
-        record = {
-            "id": doc_id,
-            "user_id": doc_data.get("user_id", "usr_anandha"),
-            "storage_path": doc_data.get("storage_path", f"documents/{doc_id}.bin"),
-            "original_filename": doc_data.get("original_filename", "unnamed"),
-            "generated_filename": doc_data.get("generated_filename", doc_data.get("original_filename", "unnamed")),
-            "suggested_filename": doc_data.get("suggested_filename", doc_data.get("original_filename", "unnamed")),
-            "category": doc_data.get("category", "Other / Unsorted"),
-            "vendor_or_issuer": doc_data.get("vendor_or_issuer"),
-            "summary": doc_data.get("summary"),
-            "extracted_metadata": doc_data.get("extracted_metadata", {}),
-            "expiry_date": doc_data.get("expiry_date"),
-            "is_starred": doc_data.get("is_starred", False),
-            "status": doc_data.get("status", "pending"),
-            "file_hash": doc_data.get("file_hash"),
-            "tags": doc_data.get("tags", []),
-            "created_at": now,
-            "updated_at": now
-        }
-
-        if self.is_connected and self.client:
-            try:
-                res = self.client.table("documents").insert(record).execute()
                 if res.data:
-                    record = res.data[0]
-            except Exception as e:
-                print(f"[SupabaseService] Error inserting document record into Supabase: {e}")
-
-        self._memory_documents[doc_id] = record
-        self._save_local_db()
-        return record
-
-    def get_document(self, doc_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieves document detail by ID."""
-        if self.is_connected and self.client:
-            try:
-                res = self.client.table("documents").select("*").eq("id", doc_id).execute()
-                if res.data and len(res.data) > 0:
                     return res.data[0]
             except Exception:
                 pass
-        return self._memory_documents.get(doc_id)
+        return None
 
     def list_documents(
         self,
@@ -322,6 +326,64 @@ class SupabaseService:
                     "document": doc
                 })
         return results
+
+    def search_documents_vector(
+        self,
+        query_embedding: List[float],
+        user_id: Optional[str] = None,
+        limit: int = 10,
+        match_threshold: float = 0.1
+    ) -> List[Dict[str, Any]]:
+        """
+        Executes cosine similarity search over 1024-dim document embeddings:
+        1. If connected to Supabase pgvector, calls `match_documents` RPC function.
+        2. Otherwise, executes vector dot-product cosine similarity over local memory embeddings.
+        """
+        if self.is_connected and self.client:
+            try:
+                rpc_res = self.client.rpc(
+                    "match_documents",
+                    {
+                        "query_embedding": query_embedding,
+                        "match_threshold": match_threshold,
+                        "match_count": limit,
+                        "p_user_id": user_id
+                    }
+                ).execute()
+                if rpc_res.data:
+                    return rpc_res.data
+            except Exception as e:
+                print(f"[SupabaseService] Remote RPC vector search exception: {e}")
+
+        # In-memory Cosine Similarity calculation
+        def cosine_similarity(v1, v2):
+            if not v1 or not v2 or len(v1) != len(v2):
+                return 0.0
+            dot = sum(a * b for a, b in zip(v1, v2))
+            norm1 = math.sqrt(sum(a * a for a in v1))
+            norm2 = math.sqrt(sum(b * b for b in v2))
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+            return dot / (norm1 * norm2)
+
+        scored_docs = []
+        for doc_id, emb in self._memory_embeddings.items():
+            doc = self.get_document(doc_id)
+            if not doc:
+                continue
+            if user_id and doc.get("user_id") and doc.get("user_id") != user_id:
+                continue
+            sim = cosine_similarity(query_embedding, emb)
+            if sim >= match_threshold:
+                scored_docs.append({
+                    "id": doc_id,
+                    "document": doc,
+                    "similarity": round(sim, 4),
+                    "score": round(sim, 4)
+                })
+
+        scored_docs.sort(key=lambda x: x["similarity"], reverse=True)
+        return scored_docs[:limit]
 
 
 db_service = SupabaseService()
