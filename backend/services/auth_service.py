@@ -5,8 +5,16 @@ import hashlib
 import datetime
 from typing import Dict, Any, List, Optional
 
-STORAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage")
-os.makedirs(STORAGE_DIR, exist_ok=True)
+if os.environ.get("VERCEL"):
+    STORAGE_DIR = "/tmp/storage"
+else:
+    STORAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage")
+
+try:
+    os.makedirs(STORAGE_DIR, exist_ok=True)
+except Exception as e:
+    print(f"[AuthService] Storage directory creation notice: {e}")
+
 USERS_JSON_PATH = os.path.join(STORAGE_DIR, "users.json")
 
 
