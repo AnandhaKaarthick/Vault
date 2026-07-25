@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -43,12 +43,8 @@ export const loginUser = async (username, password) => {
   return response.data;
 };
 
-export const registerUser = async (username, password, fullName = '') => {
-  const response = await api.post('/auth/register', { username, password, full_name: fullName });
-  if (response.data && response.data.token) {
-    localStorage.setItem('vault_token', response.data.token);
-    localStorage.setItem('vault_user', JSON.stringify(response.data.user));
-  }
+export const registerUser = async (username, password, full_name, role) => {
+  const response = await api.post('/auth/register', { username, password, full_name, role });
   return response.data;
 };
 
@@ -57,60 +53,70 @@ export const getCurrentUser = async () => {
   return response.data;
 };
 
-// Document Management APIs
+export const logoutUser = () => {
+  localStorage.removeItem('vault_token');
+  localStorage.removeItem('vault_user');
+};
+
+// Document APIs
 export const uploadDocument = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const response = await api.post('/documents/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
   });
+
   return response.data;
 };
 
-export const checkJobStatus = async (jobId) => {
+export const getJobStatus = async (jobId) => {
   const response = await api.get(`/documents/jobs/${jobId}`);
   return response.data;
 };
 
-export const listDocuments = async (params = {}) => {
+export const fetchDocuments = async (params = {}) => {
   const response = await api.get('/documents', { params });
   return response.data;
 };
 
-export const getDocument = async (docId, pin = null) => {
+export const fetchDocumentDetails = async (documentId, pin = null) => {
   const headers = {};
   if (pin) {
     headers['X-Security-Pin'] = pin;
   }
-  const response = await api.get(`/documents/${docId}`, { headers });
+  const response = await api.get(`/documents/${documentId}`, { headers });
   return response.data;
 };
 
-export const renameDocument = async (docId, newFilename) => {
-  const response = await api.patch(`/documents/${docId}/rename`, { new_filename: newFilename });
+export const getDocumentFileUrl = (documentId, pin = null) => {
+  const token = localStorage.getItem('vault_token') || '';
+  let url = `${API_BASE_URL}/documents/${documentId}/file?token=${encodeURIComponent(token)}`;
+  if (pin) {
+    url += `&pin=${encodeURIComponent(pin)}`;
+  }
+  return url;
+};
+
+export const renameDocument = async (documentId, newFilename) => {
+  const response = await api.patch(`/documents/${documentId}/rename`, { new_filename: newFilename });
   return response.data;
 };
 
-export const updateDocumentTags = async (docId, tags) => {
-  const response = await api.patch(`/documents/${docId}/tags`, { tags });
+export const updateDocumentTags = async (documentId, tags) => {
+  const response = await api.patch(`/documents/${documentId}/tags`, { tags });
   return response.data;
 };
 
-export const toggleStarDocument = async (docId) => {
-  const response = await api.patch(`/documents/${docId}/star`);
+export const toggleStarDocument = async (documentId) => {
+  const response = await api.patch(`/documents/${documentId}/star`);
   return response.data;
 };
 
-export const deleteDocument = async (docId) => {
-  const response = await api.delete(`/documents/${docId}`);
-  return response.data;
-};
-
-export const searchDocuments = async (query) => {
-  const response = await api.post('/search', { query });
+export const deleteDocument = async (documentId) => {
+  const response = await api.delete(`/documents/${documentId}`);
   return response.data;
 };
 
@@ -119,13 +125,14 @@ export const verifyPin = async (pin) => {
   return response.data;
 };
 
-export const getSettings = async () => {
-  const response = await api.get('/settings');
+// Vector & Full-Text Search APIs
+export const searchDocumentsVector = async (query, limit = 10) => {
+  const response = await api.post('/search/vector', { query, limit });
   return response.data;
 };
 
-export const updateSettings = async (settings) => {
-  const response = await api.post('/settings', settings);
+export const searchDocumentsText = async (query) => {
+  const response = await api.get('/search/text', { params: { query } });
   return response.data;
 };
 

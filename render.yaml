@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: docvault-api
+    env: python
+    region: oregon
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: docvault-frontend
+    env: static
+    region: oregon
+    buildCommand: cd frontend && npm install && npm run dev:build || npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: docvault-api
+          property: url
