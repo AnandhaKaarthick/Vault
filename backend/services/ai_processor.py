@@ -190,7 +190,7 @@ CATEGORY_MAP = {
 class AIProcessor:
     """
     Multimodal AI Processing Engine using NVIDIA NIM APIs:
-    - Vision Model: meta/llama-3.2-11b-vision-instruct (OCR + Vision + Lecture Notes + Marksheets)
+    - Vision Model: meta/llama-3.2-11b-vision-instruct (OCR + Hall Ticket vs Marksheet Differentiation)
     - Text Model: google/gemma-2-2b-it (Document & Student Asset Structuring + Relative Name Conversion)
     - Embeddings: nvidia/llama-3.2-nv-embedqa-1b-v2
     """
@@ -272,22 +272,21 @@ class AIProcessor:
 
     @classmethod
     def _apply_deterministic_regex_fallback(cls, filename: str, extracted_text: str) -> Dict[str, Any]:
-        """Offline deterministic rule engine for smart relative name conversion preserving original file extension."""
+        """Offline deterministic rule engine for Hall Ticket vs Marksheet differentiation and relative naming."""
         fn_lower = filename.lower()
         text_lower = extracted_text.lower()
         combined = fn_lower + " " + text_lower
 
         category = cls._normalize_category("", filename=filename, text=extracted_text)
 
-        # Entity Extraction Fallbacks
         vendor = "Vault_Archive"
         doc_type = "Record"
         due_date = None
-        period = datetime.date.today().strftime("%Y")
+        period = datetime.datetime.now().strftime("%Y")
         amount = None
         currency = "INR" if ("inr" in combined or "₹" in combined or "rs" in combined) else "USD"
         account_no = None
-        doc_date = datetime.date.today().isoformat()
+        doc_date = datetime.datetime.now().strftime("%Y-%m-%d")
         tags = ["Archival", "Record"]
         summary = "Document record processed and stored securely in vault."
 
@@ -314,10 +313,9 @@ class AIProcessor:
             due_date = dates_found[0].replace('/', '-')
             period = due_date[:4]
 
-        # Smart Relative Naming logic
         orig_ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'pdf'
 
-        # 1. Notes & Lecture Study Guides Check
+        # 1. Class Notes & Lecture Study Guides Check
         if any(k in combined for k in ["note", "notes", "lecture", "study", "workbook", "lab manual", "chapter"]):
             category = "Academic & Marksheets"
             subj_name = subject_tag or "Study"
@@ -329,16 +327,27 @@ class AIProcessor:
                 tags.append(subject_tag)
             suggested_fn = f"{subj_name}_Lecture_Notes_{period}.{orig_ext}"
 
-        # 2. Academic Marksheets & Transcripts Check
-        elif any(k in combined for k in ["marksheet", "mark sheet", "transcript", "grade sheet", "cgpa", "scorecard", "degree", "diploma", "cbse", "sslc", "hsc", "hall ticket", "admit card", "fee receipt", "bonafide"]):
+        # 2a. EXPLICIT HALL TICKET / ADMIT CARD CHECK (High Priority)
+        elif any(k in combined for k in ["hall ticket", "admit card", "examination admit card", "exam timetable", "exam center", "exam centre", "provisional admit card", "candidate admit card", "ticket"]):
+            category = "Academic & Marksheets"
+            vendor = "University" if "university" in combined else "NTA" if any(x in combined for x in ["neet", "jee", "nta"]) else "Exam_Board"
+            doc_type = "HallTicket"
+            summary = "Official examination hall ticket / admit card detailing candidate roll number, exam timetable, and test center."
+            tags = ["Academic", "HallTicket", "AdmitCard"]
+            if subject_tag:
+                tags.append(subject_tag)
+            suggested_fn = f"{vendor}_HallTicket_{period}.{orig_ext}"
+
+        # 2b. EXPLICIT MARKSHEET / TRANSCRIPT / GRADE CARD CHECK
+        elif any(k in combined for k in ["marksheet", "mark sheet", "transcript", "grade sheet", "statement of marks", "cgpa", "sgpa", "degree", "diploma", "cbse", "sslc", "hsc"]):
             category = "Academic & Marksheets"
             vendor = "University" if "university" in combined else "CBSE" if "cbse" in combined else "Academic_Board"
-            doc_type = "Marksheet" if "marksheet" in combined else "HallTicket" if "ticket" in combined else "Transcript"
-            summary = "Official academic marksheet, transcript, or exam document detailing student credentials."
+            doc_type = "Marksheet" if any(k in combined for k in ["marksheet", "mark sheet", "marks"]) else "Transcript"
+            summary = "Official academic marksheet, grade card, or transcript detailing subject marks, credits, and CGPA."
             tags = ["Academic", "Marksheet", "Official"]
             if subject_tag:
                 tags.append(subject_tag)
-            suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
+            suggested_fn = f"{vendor}_Marksheet_{period}.{orig_ext}"
 
         # 3. Certificates & Courses Check
         elif any(k in combined for k in ["internship", "coursera", "nptel", "udemy", "hackathon", "workshop", "certificate", "certification", "achievement"]):
@@ -405,7 +414,7 @@ class AIProcessor:
         Executes multimodal analysis for Student Documents, Class Notes, Marksheets, Certificates, Photos, and Signatures:
         1. Preprocesses image bytes for blur restoration and edge sharpening.
         2. Calls NVIDIA Vision NIM (meta/llama-3.2-11b-vision-instruct).
-        3. Calls Gemma 2B (google/gemma-2-2b-it) for JSON structuring, subject sub-tagging, and smart relative filename conversion.
+        3. Calls Gemma 2B (google/gemma-2-2b-it) with explicit Hall Ticket vs Marksheet prompt rules.
         """
         extracted_text = ""
         is_image = mime_type.startswith("image/") or filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))
@@ -433,12 +442,12 @@ class AIProcessor:
             data_url = f"data:image/jpeg;base64,{b64_file}"
 
             ocr_prompt = (
-                "Examine this image upload thoroughly. "
-                "1. If it is Lecture/Class Notes, Study Guides, or Lab Notebooks, transcribe all handwritten or typed text, chapter titles, subject headers, formulas, equations, and main study topics. "
-                "2. If it is an Academic Marksheet, Grade Card, Transcript, Hall Ticket, Admit Card, or Fee Receipt, transcribe all candidate/student names, roll numbers, subject marks, CGPA, percentage, board/university names, and issue dates. "
-                "3. If it is an Internship Certificate, Online Course Certificate (Coursera, NPTEL, Udemy), Hackathon Award, or Workshop Certificate, transcribe issuing organization, course/event title, candidate name, and completion date. "
-                "4. If it is a User Passport Photo or Portrait, identify it as 'User Passport/Portrait Photograph' under 'Identity & Official'. "
-                "5. For general documents, bills, receipts, or certificates, transcribe all visible text, dates, monetary amounts, and reference numbers accurately."
+                "Examine this image upload thoroughly and carefully differentiate between Hall Tickets/Admit Cards and Marksheets: "
+                "1. HALL TICKET / ADMIT CARD: If the document contains text like 'Hall Ticket', 'Admit Card', 'Exam Timetable', 'Exam Center', 'Invigilator Signature', or lists upcoming exam dates/times WITHOUT marks/grades, classify it strictly as an EXAM HALL TICKET. Transcribe roll number, exam center, and exam name. "
+                "2. MARKSHEET / GRADE CARD: If the document contains 'Statement of Marks', 'Marksheet', 'Grade Card', 'Transcript', 'Passed/Failed', 'CGPA', or lists subjects WITH marks/grades, classify it strictly as a MARKSHEET. Transcribe roll number, CGPA, total marks, and board/university name. "
+                "3. CLASS NOTES: If it contains lecture notes, equations, or study guides, transcribe chapter topics. "
+                "4. CERTIFICATES: Transcribe issuing organization, course title, and completion date. "
+                "5. USER PHOTO / SIGNATURE: Identify passport photo or specimen signature."
             )
 
             try:
@@ -471,8 +480,8 @@ class AIProcessor:
         if not extracted_text:
             extracted_text = cls._extract_text_from_pdf_or_bytes(filename, file_bytes)
 
-        # Step 2: Gemma 2B Structuring & Relative Naming Conversion
-        print(f"[AIProcessor] Invoking NVIDIA Text NIM ({NVIDIA_TEXT_MODEL}) for Gemma 2B smart relative naming...")
+        # Step 2: Gemma 2B Structuring & Explicit Differentiation Rules
+        print(f"[AIProcessor] Invoking NVIDIA Text NIM ({NVIDIA_TEXT_MODEL}) with strict Hall Ticket vs Marksheet differentiation rules...")
         struct_prompt = f"""
 Analyze the following extracted text/description thoroughly and respond strictly with a valid JSON object matching the schema below. Strip any markdown codeblock tags.
 
@@ -483,26 +492,30 @@ Extracted Vision Analysis:
 Categories available:
 ["Academic & Marksheets", "Certificates & Courses", "Tax", "Financial & Bank", "Identity & Official", "Utility & Bills", "Travel & Tickets", "Medical & Health", "Receipts & Invoices", "Other / Unsorted"]
 
-Relative Naming Conversion Rules for suggested_filename (without file extension):
-- For Class Notes: [Subject_Name]_[Topic]_Notes_[Year] (e.g. ComputerScience_DataStructures_Notes_2026, Physics_QuantumMechanics_Notes_2026)
-- For Marksheets: [University_or_Board]_[Document_Type]_[Year] (e.g. CBSE_Class12_Marksheet_2024, Anna_University_Semester6_Transcript_2026)
-- For Certificates: [Organization_or_Platform]_[Certificate_Title]_[Year] (e.g. Google_AI_Internship_Certificate_2025, NPTEL_Python_Course_Certificate_2024)
-- For Bills: [Vendor_or_Provider]_[Bill_Type]_[Year] (e.g. BESCOM_Electricity_Bill_2026)
+STRICT HALL TICKET vs MARKSHEET DIFFERENTIATION RULES:
+1. HALL TICKET / ADMIT CARD: If the document is an admit card, exam timetable, hall ticket, or test center pass (NO marks/grades listed):
+   - Category: "Academic & Marksheets"
+   - suggested_filename format: [University_or_Board]_[Exam_Name]_HallTicket_[Year] (e.g. NEET_UG_HallTicket_2026, Anna_University_Semester6_HallTicket_2026)
+   - tags: ["Academic", "HallTicket", "AdmitCard"]
+2. MARKSHEET / TRANSCRIPT: If the document contains marks, grades, CGPA, percentage, or statement of marks:
+   - Category: "Academic & Marksheets"
+   - suggested_filename format: [University_or_Board]_[Semester_or_Class]_Marksheet_[Year] (e.g. CBSE_Class12_Marksheet_2024, Anna_University_Semester6_Marksheet_2026)
+   - tags: ["Academic", "Marksheet", "Official"]
 
 JSON Schema required:
 {{
   "category": "<one of the categories above>",
-  "vendor_or_issuer": "<issuing authority, university, board, subject, or organization>",
-  "suggested_filename": "<smart_descriptive_relative_name>",
-  "summary": "<exactly 2 sentences executive study summary detailing main chapters, formulas, subject concepts, and academic purpose>",
+  "vendor_or_issuer": "<issuing authority, university, board, or exam body>",
+  "suggested_filename": "<descriptive_relative_name_without_extension>",
+  "summary": "<exactly 2 sentences executive summary detailing document type, student/candidate credentials, exam/academic details, and key purpose>",
   "metadata": {{
      "total_amount": <number or null>,
      "currency": "<INR/USD/EUR>",
      "document_date": "<YYYY-MM-DD or null>",
      "expiration_or_due_date": "<YYYY-MM-DD or null>",
-     "account_number": "<roll number, registration number, ID, or null>"
+     "account_number": "<roll number, registration number, or null>"
   }},
-  "tags": ["<subject_tag1>", "<tag2>", "<tag3>"]
+  "tags": ["<tag1>", "<tag2>", "<tag3>"]
 }}
 """
         try:
@@ -528,7 +541,7 @@ JSON Schema required:
                     category = cls._normalize_category(raw_cat, filename=filename, text=extracted_text)
 
                     raw_suggested = parsed.get("suggested_filename", "")
-                    if not raw_suggested or raw_suggested.strip() in ["", "smart_descriptive_relative_name"]:
+                    if not raw_suggested or raw_suggested.strip() in ["", "descriptive_relative_name_without_extension"]:
                         raw_suggested = f"{category.replace(' ', '_').replace('&', 'and')}_Record"
 
                     # Clean relative base name
