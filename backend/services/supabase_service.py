@@ -173,14 +173,15 @@ class SupabaseService:
                 start = (page - 1) * limit
                 end = start + limit - 1
                 res = query.order("created_at", desc=True).range(start, end).execute()
-                return {
-                    "documents": res.data or [],
-                    "total": res.count or len(res.data or []),
-                    "page": page,
-                    "limit": limit
-                }
-            except Exception:
-                pass
+                if res.data and len(res.data) > 0:
+                    return {
+                        "documents": res.data,
+                        "total": res.count or len(res.data),
+                        "page": page,
+                        "limit": limit
+                    }
+            except Exception as e:
+                print(f"[SupabaseService] Remote list_documents exception: {e}")
 
         all_docs = list(self._memory_documents.values())
         filtered = []
