@@ -42,7 +42,7 @@ export default function App() {
     if (saved) {
       try { return JSON.parse(saved); } catch (e) {}
     }
-    return null;
+    return { id: 'usr_anandha', username: 'anandha', full_name: 'Anandha Kaarthick S.' };
   });
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
@@ -127,9 +127,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (currentUser) {
-      fetchDocs();
-    }
+    fetchDocs();
   }, [selectedCategory, isExpiringOnly, isStarredOnly, currentUser]);
 
   // Polling loop for active extraction workers
