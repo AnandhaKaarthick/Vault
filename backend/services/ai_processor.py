@@ -279,7 +279,7 @@ class AIProcessor:
 
         category = cls._normalize_category("", filename=filename, text=extracted_text)
 
-        vendor = "Vault_Archive"
+        vendor = "Academic Board"
         doc_type = "Record"
         due_date = None
         period = datetime.datetime.now().strftime("%Y")
@@ -292,7 +292,7 @@ class AIProcessor:
 
         # Detect Subject for Notes & Academic Files
         subject_tag = None
-        if any(k in combined for k in ["computer science", "data structures", "algorithm", "python", "java", "coding", "software"]):
+        if any(k in combined for k in ["computer science", "data structures", "algorithm", "python", "java", "coding", "software", "cs84"]):
             subject_tag = "ComputerScience"
         elif any(k in combined for k in ["math", "mathematics", "calculus", "algebra", "trigonometry", "numerical"]):
             subject_tag = "Mathematics"
@@ -327,34 +327,60 @@ class AIProcessor:
                 tags.append(subject_tag)
             suggested_fn = f"{subj_name}_Lecture_Notes_{period}.{orig_ext}"
 
-        # 2a. EXPLICIT HALL TICKET / ADMIT CARD CHECK (High Priority)
-        elif any(k in combined for k in ["hall ticket", "admit card", "examination admit card", "exam timetable", "exam center", "exam centre", "provisional admit card", "candidate admit card", "ticket"]):
+        # 2a. EXPLICIT HALL TICKET / ADMIT CARD CHECK (Includes NPTEL NOC Codes)
+        elif any(k in combined for k in ["hall ticket", "admit card", "examination admit card", "exam timetable", "exam center", "exam centre", "provisional admit card", "candidate admit card", "ticket"]) or fn_lower.startswith("noc"):
             category = "Academic & Marksheets"
-            vendor = "University" if "university" in combined else "NTA" if any(x in combined for x in ["neet", "jee", "nta"]) else "Exam_Board"
+            if "nptel" in combined or fn_lower.startswith("noc"):
+                vendor = "NPTEL"
+            elif "cbse" in combined:
+                vendor = "CBSE"
+            elif "anna university" in combined:
+                vendor = "Anna_University"
+            elif any(x in combined for x in ["neet", "jee", "nta"]):
+                vendor = "NTA"
+            else:
+                vendor = "University"
+
             doc_type = "HallTicket"
-            summary = "Official examination hall ticket / admit card detailing candidate roll number, exam timetable, and test center."
+            summary = f"Official {vendor} examination hall ticket / admit card detailing candidate roll number, exam timetable, and test center."
             tags = ["Academic", "HallTicket", "AdmitCard"]
             if subject_tag:
                 tags.append(subject_tag)
-            suggested_fn = f"{vendor}_HallTicket_{period}.{orig_ext}"
+            
+            if subject_tag:
+                suggested_fn = f"{vendor}_{subject_tag}_HallTicket_{period}.{orig_ext}"
+            else:
+                suggested_fn = f"{vendor}_HallTicket_{period}.{orig_ext}"
 
         # 2b. EXPLICIT MARKSHEET / TRANSCRIPT / GRADE CARD CHECK
         elif any(k in combined for k in ["marksheet", "mark sheet", "transcript", "grade sheet", "statement of marks", "cgpa", "sgpa", "degree", "diploma", "cbse", "sslc", "hsc"]):
             category = "Academic & Marksheets"
-            vendor = "University" if "university" in combined else "CBSE" if "cbse" in combined else "Academic_Board"
+            if "nptel" in combined:
+                vendor = "NPTEL"
+            elif "cbse" in combined:
+                vendor = "CBSE"
+            elif "anna university" in combined:
+                vendor = "Anna_University"
+            else:
+                vendor = "University"
+
             doc_type = "Marksheet" if any(k in combined for k in ["marksheet", "mark sheet", "marks"]) else "Transcript"
-            summary = "Official academic marksheet, grade card, or transcript detailing subject marks, credits, and CGPA."
+            summary = f"Official {vendor} academic marksheet, grade card, or transcript detailing subject marks, credits, and CGPA."
             tags = ["Academic", "Marksheet", "Official"]
             if subject_tag:
                 tags.append(subject_tag)
-            suggested_fn = f"{vendor}_Marksheet_{period}.{orig_ext}"
+
+            if subject_tag:
+                suggested_fn = f"{vendor}_{subject_tag}_Marksheet_{period}.{orig_ext}"
+            else:
+                suggested_fn = f"{vendor}_Marksheet_{period}.{orig_ext}"
 
         # 3. Certificates & Courses Check
         elif any(k in combined for k in ["internship", "coursera", "nptel", "udemy", "hackathon", "workshop", "certificate", "certification", "achievement"]):
             category = "Certificates & Courses"
             vendor = "Google" if "google" in combined else "NPTEL" if "nptel" in combined else "Coursera" if "coursera" in combined else "Course_Platform"
             doc_type = "Internship_Certificate" if "internship" in combined else "Course_Certificate"
-            summary = "Verified course completion, internship experience, or achievement certification."
+            summary = f"Verified {vendor} course completion, internship experience, or achievement certification."
             tags = ["Certificate", "Course", "Skills"]
             if subject_tag:
                 tags.append(subject_tag)
@@ -392,13 +418,13 @@ class AIProcessor:
 
         return {
             "category": category,
-            "vendor_or_issuer": vendor,
+            "vendor_or_issuer": vendor or "Academic Board",
             "suggested_filename": suggested_fn,
             "generated_filename": suggested_fn,
             "summary": summary,
             "expiry_date": due_date,
             "extracted_metadata": {
-                "vendor_or_issuer": vendor,
+                "vendor_or_issuer": vendor or "Academic Board",
                 "total_amount": amount,
                 "currency": currency,
                 "document_date": doc_date,
@@ -443,7 +469,7 @@ class AIProcessor:
 
             ocr_prompt = (
                 "Examine this image upload thoroughly and carefully differentiate between Hall Tickets/Admit Cards and Marksheets: "
-                "1. HALL TICKET / ADMIT CARD: If the document contains text like 'Hall Ticket', 'Admit Card', 'Exam Timetable', 'Exam Center', 'Invigilator Signature', or lists upcoming exam dates/times WITHOUT marks/grades, classify it strictly as an EXAM HALL TICKET. Transcribe roll number, exam center, and exam name. "
+                "1. HALL TICKET / ADMIT CARD: If the document contains text like 'Hall Ticket', 'Admit Card', 'Exam Timetable', 'Exam Center', 'Invigilator Signature', 'NOC', or lists upcoming exam dates/times WITHOUT marks/grades, classify it strictly as an EXAM HALL TICKET. Transcribe roll number, exam center, and exam name. "
                 "2. MARKSHEET / GRADE CARD: If the document contains 'Statement of Marks', 'Marksheet', 'Grade Card', 'Transcript', 'Passed/Failed', 'CGPA', or lists subjects WITH marks/grades, classify it strictly as a MARKSHEET. Transcribe roll number, CGPA, total marks, and board/university name. "
                 "3. CLASS NOTES: If it contains lecture notes, equations, or study guides, transcribe chapter topics. "
                 "4. CERTIFICATES: Transcribe issuing organization, course title, and completion date. "
@@ -493,19 +519,21 @@ Categories available:
 ["Academic & Marksheets", "Certificates & Courses", "Tax", "Financial & Bank", "Identity & Official", "Utility & Bills", "Travel & Tickets", "Medical & Health", "Receipts & Invoices", "Other / Unsorted"]
 
 STRICT HALL TICKET vs MARKSHEET DIFFERENTIATION RULES:
-1. HALL TICKET / ADMIT CARD: If the document is an admit card, exam timetable, hall ticket, or test center pass (NO marks/grades listed):
+1. HALL TICKET / ADMIT CARD: If the document is an admit card, exam timetable, NPTEL NOC hall ticket, or test center pass (NO marks/grades listed):
    - Category: "Academic & Marksheets"
-   - suggested_filename format: [University_or_Board]_[Exam_Name]_HallTicket_[Year] (e.g. NEET_UG_HallTicket_2026, Anna_University_Semester6_HallTicket_2026)
+   - suggested_filename format: [University_or_Platform]_[Subject_or_Exam]_HallTicket_[Year] (e.g. NPTEL_ComputerScience_HallTicket_2026, Anna_University_Semester6_HallTicket_2026)
+   - vendor_or_issuer: Name of university, board, or platform (e.g. NPTEL, CBSE, Anna University)
    - tags: ["Academic", "HallTicket", "AdmitCard"]
 2. MARKSHEET / TRANSCRIPT: If the document contains marks, grades, CGPA, percentage, or statement of marks:
    - Category: "Academic & Marksheets"
    - suggested_filename format: [University_or_Board]_[Semester_or_Class]_Marksheet_[Year] (e.g. CBSE_Class12_Marksheet_2024, Anna_University_Semester6_Marksheet_2026)
+   - vendor_or_issuer: Name of board or university
    - tags: ["Academic", "Marksheet", "Official"]
 
 JSON Schema required:
 {{
   "category": "<one of the categories above>",
-  "vendor_or_issuer": "<issuing authority, university, board, or exam body>",
+  "vendor_or_issuer": "<issuing authority, university, NPTEL, board, or exam body>",
   "suggested_filename": "<descriptive_relative_name_without_extension>",
   "summary": "<exactly 2 sentences executive summary detailing document type, student/candidate credentials, exam/academic details, and key purpose>",
   "metadata": {{
@@ -541,8 +569,14 @@ JSON Schema required:
                     category = cls._normalize_category(raw_cat, filename=filename, text=extracted_text)
 
                     raw_suggested = parsed.get("suggested_filename", "")
-                    if not raw_suggested or raw_suggested.strip() in ["", "descriptive_relative_name_without_extension"]:
-                        raw_suggested = f"{category.replace(' ', '_').replace('&', 'and')}_Record"
+                    fn_lower = filename.lower()
+                    
+                    # If raw_suggested is opaque code (like NOC26CS84S385800358) or empty:
+                    if not raw_suggested or raw_suggested.strip() in ["", "descriptive_relative_name_without_extension"] or raw_suggested.lower() == fn_lower.rsplit('.', 1)[0]:
+                        fallback_data = cls._apply_deterministic_regex_fallback(filename, extracted_text)
+                        raw_suggested = fallback_data["suggested_filename"].rsplit('.', 1)[0]
+                        if not parsed.get("vendor_or_issuer") or str(parsed.get("vendor_or_issuer")).lower() in ["null", "none", "unknown"]:
+                            parsed["vendor_or_issuer"] = fallback_data["vendor_or_issuer"]
 
                     # Clean relative base name
                     clean_base = re.sub(r'[^a-zA-Z0-9_\-]', '_', raw_suggested.rsplit('.', 1)[0]).strip('_')
@@ -552,6 +586,10 @@ JSON Schema required:
                     orig_ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'pdf'
                     suggested_fn = f"{clean_base}.{orig_ext}"
 
+                    vendor = parsed.get("vendor_or_issuer")
+                    if not vendor or str(vendor).lower() in ["null", "none", "unknown"]:
+                        vendor = "Academic Board"
+
                     meta = parsed.get("metadata", {})
                     exp_date = meta.get("expiration_or_due_date")
                     
@@ -560,7 +598,7 @@ JSON Schema required:
 
                     return {
                         "category": category,
-                        "vendor_or_issuer": parsed.get("vendor_or_issuer", "Unknown"),
+                        "vendor_or_issuer": vendor,
                         "suggested_filename": suggested_fn,
                         "generated_filename": suggested_fn,
                         "summary": parsed.get("summary", "Upload processed and stored in vault."),
