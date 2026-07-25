@@ -9,16 +9,7 @@ from backend.config import (
     SUPABASE_KEY
 )
 
-if os.environ.get("VERCEL"):
-    STORAGE_DIR = "/tmp/storage"
-else:
-    STORAGE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "storage"))
-
-try:
-    os.makedirs(STORAGE_DIR, exist_ok=True)
-except Exception as e:
-    print(f"[SupabaseService] Storage directory creation notice: {e}")
-
+STORAGE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "storage"))
 DB_JSON_PATH = os.path.join(STORAGE_DIR, "db.json")
 
 try:
