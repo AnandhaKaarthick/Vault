@@ -313,9 +313,26 @@ class SupabaseService:
         return None
 
     def save_embedding(self, doc_id: str, embedding: List[float]):
-        """Saves 1024-dim embedding vector."""
+        """Saves 1024-dim embedding vector to local DB and Supabase remote pgvector database."""
         self._memory_embeddings[doc_id] = embedding
         self._save_local_db()
+
+        if self.is_connected and self.client:
+            try:
+                doc = self.get_document(doc_id)
+                user_id = doc.get("user_id", "usr_anandha") if doc else "usr_anandha"
+                # Remove existing embedding row if present
+                self.client.table("document_embeddings").delete().eq("document_id", doc_id).execute()
+                # Insert 1024-dim vector embedding row
+                self.client.table("document_embeddings").insert({
+                    "document_id": doc_id,
+                    "user_id": user_id,
+                    "embedding": embedding,
+                    "model_name": "nvidia/llama-3.2-nv-embedqa-1b-v2"
+                }).execute()
+                print(f"[SupabaseService] Synced 1024-dim vector embedding to Supabase for doc '{doc_id}'.")
+            except Exception as e:
+                print(f"[SupabaseService] Remote embedding insert warning: {e}")
 
     def get_all_embeddings(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Returns document embeddings for vector similarity search."""
