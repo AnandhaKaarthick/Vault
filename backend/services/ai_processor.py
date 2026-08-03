@@ -428,7 +428,15 @@ class AIProcessor:
             suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
 
         else:
-            suggested_fn = f"{category.replace(' ', '_').replace('&', 'and')}_Record_{period}.{orig_ext}"
+            # Smart fallback: clean original filename if meaningful, otherwise use category label
+            raw_base = filename.rsplit('.', 1)[0] if '.' in filename else filename
+            clean_fn = re.sub(r'[^\w\s.-]', '', raw_base).strip()
+            clean_fn = re.sub(r'[\s-]+', '_', clean_fn)
+            if clean_fn and len(clean_fn) > 2 and not clean_fn.lower().startswith('image_20') and not clean_fn.lower().startswith('screenshot_20'):
+                suggested_fn = f"{clean_fn}.{orig_ext}"
+            else:
+                cat_clean = category.replace(' ', '_').replace('&', 'and')
+                suggested_fn = f"{cat_clean}_Record_{period}.{orig_ext}"
 
         return {
             "category": category,
