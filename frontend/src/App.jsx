@@ -36,13 +36,13 @@ const SEARCH_PLACEHOLDERS = [
 ];
 
 export default function App() {
-  // User Authentication State
+  // User Authentication State (First time visitors land on Welcome & Login screen)
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('vault_user');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) {}
     }
-    return { id: 'usr_anandha', username: 'anandha', full_name: 'Anandha Kaarthick S.' };
+    return null;
   });
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
@@ -322,6 +322,94 @@ export default function App() {
     const fn = (doc.suggested_filename || doc.original_filename || '').toLowerCase();
     return /\.(png|jpg|jpeg|webp)$/i.test(fn);
   };
+
+  // First-Time Visitor & Unauthenticated Welcome Screen
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-[#f8faf4] text-[#1C2620] font-sans flex flex-col justify-between">
+        <header className="w-full bg-[#FFFFFF] border-b border-[#1C2620]/15 py-4 px-6 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <h1 className="font-serif text-3xl font-semibold text-[#28493F]">Vault</h1>
+            <span className="px-2.5 py-0.5 rounded bg-[#28493F]/10 text-[#28493F] font-mono text-[11px] uppercase font-semibold">
+              Archival Records Office
+            </span>
+          </div>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 text-[#1C2620]/60 hover:text-[#1C2620] hover:bg-[#1C2620]/5 rounded transition-colors"
+            title="System Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        </header>
+
+        <main className="max-w-4xl mx-auto px-4 py-12 text-center space-y-8 flex-1 flex flex-col items-center justify-center">
+          <div className="space-y-4 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#28493F]/10 text-[#28493F] font-mono text-xs font-semibold uppercase tracking-wider">
+              <ShieldCheck className="w-4 h-4" /> Secure AI Archival Vault
+            </div>
+            <h2 className="font-serif text-4xl sm:text-5xl font-bold text-[#1C2620] tracking-tight leading-tight">
+              Intelligent Document Intake & Archival Memory
+            </h2>
+            <p className="text-base text-[#1C2620]/70 font-sans">
+              Sign in to manage your documents, OCR Vision intake, 1024-dim semantic vector search, and PIN security vault.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl">
+            <div className="p-5 bg-white border border-[#1C2620]/15 rounded-lg text-left shadow-sm space-y-2">
+              <div className="w-8 h-8 rounded bg-[#28493F]/10 text-[#28493F] flex items-center justify-center font-bold font-mono">1</div>
+              <h3 className="font-serif font-bold text-base text-[#1C2620]">Auto Vision OCR</h3>
+              <p className="text-xs text-[#1C2620]/60">Llama 3.2 Vision Model transcribes & categorizes documents automatically.</p>
+            </div>
+            <div className="p-5 bg-white border border-[#1C2620]/15 rounded-lg text-left shadow-sm space-y-2">
+              <div className="w-8 h-8 rounded bg-[#28493F]/10 text-[#28493F] flex items-center justify-center font-bold font-mono">2</div>
+              <h3 className="font-serif font-bold text-base text-[#1C2620]">Vector Search</h3>
+              <p className="text-xs text-[#1C2620]/60">1024-dim plain English semantic vector search finds exact records instantly.</p>
+            </div>
+            <div className="p-5 bg-white border border-[#1C2620]/15 rounded-lg text-left shadow-sm space-y-2">
+              <div className="w-8 h-8 rounded bg-[#28493F]/10 text-[#28493F] flex items-center justify-center font-bold font-mono">3</div>
+              <h3 className="font-serif font-bold text-base text-[#1C2620]">PIN Security</h3>
+              <p className="text-xs text-[#1C2620]/60">Identity, Tax, & Financial records are protected by Security PIN verification.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md pt-4">
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              className="flex-1 btn-primary py-3.5 px-6 rounded font-mono text-xs uppercase tracking-wider shadow-md flex items-center justify-center gap-2"
+            >
+              <User className="w-4 h-4" /> Sign In / Register
+            </button>
+            <button
+              onClick={() => handleLoginSuccess({ id: 'usr_anandha', username: 'anandha', full_name: 'Anandha Kaarthick S.' })}
+              className="flex-1 py-3.5 px-6 bg-white hover:bg-[#1C2620]/5 text-[#1C2620] border border-[#1C2620]/20 rounded font-mono text-xs uppercase tracking-wider font-semibold shadow-sm transition-all flex items-center justify-center gap-2"
+            >
+              <Building2 className="w-4 h-4 text-[#28493F]" /> Try Quick Demo
+            </button>
+          </div>
+        </main>
+
+        <footer className="w-full py-4 text-center font-mono text-xs text-[#1C2620]/40 border-t border-[#1C2620]/10">
+          DocVault Archival Records Office • Powered by FastAPI & NVIDIA NIM
+        </footer>
+
+        {/* Modals */}
+        {isLoginModalOpen && (
+          <LoginModal
+            onClose={() => setIsLoginModalOpen(false)}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        )}
+        {isSettingsOpen && (
+          <SettingsModal
+            onClose={() => setIsSettingsOpen(false)}
+            onSaveSuccess={fetchDocs}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8faf4] text-[#1C2620] font-sans">
