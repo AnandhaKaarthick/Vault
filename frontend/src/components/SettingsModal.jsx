@@ -3,6 +3,7 @@ import { Settings, Key, Database, X, Check, Loader2, Sparkles } from 'lucide-rea
 import { getSettings, updateSettings } from '../services/api';
 
 export default function SettingsModal({ onClose, onSaveSuccess }) {
+  const [apiUrl, setApiUrl] = useState(localStorage.getItem('vault_api_url') || '');
   const [nvidiaKey, setNvidiaKey] = useState('');
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [supabaseKey, setSupabaseKey] = useState('');
@@ -32,6 +33,12 @@ export default function SettingsModal({ onClose, onSaveSuccess }) {
     setSuccessMsg('');
 
     try {
+      if (apiUrl.trim()) {
+        localStorage.setItem('vault_api_url', apiUrl.trim());
+      } else {
+        localStorage.removeItem('vault_api_url');
+      }
+
       const payload = {};
       if (nvidiaKey.trim()) payload.nvidia_api_key = nvidiaKey.trim();
       if (supabaseUrl.trim() && supabaseKey.trim()) {
@@ -39,16 +46,23 @@ export default function SettingsModal({ onClose, onSaveSuccess }) {
         payload.supabase_key = supabaseKey.trim();
       }
 
-      const res = await updateSettings(payload);
-      setSuccessMsg('API Credentials updated successfully!');
+      if (Object.keys(payload).length > 0) {
+        await updateSettings(payload);
+      }
+
+      setSuccessMsg('Vault Configuration & Backend API URL updated successfully!');
       
-      const updatedStatus = await getSettings();
-      setStatusInfo(updatedStatus);
+      try {
+        const updatedStatus = await getSettings();
+        setStatusInfo(updatedStatus);
+      } catch (e) {}
+
       if (onSaveSuccess) onSaveSuccess();
       
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
-      alert('Error updating settings.');
+      alert('Settings updated locally. Connecting to backend...');
+      if (onSaveSuccess) onSaveSuccess();
     } finally {
       setIsSaving(false);
     }
@@ -56,7 +70,7 @@ export default function SettingsModal({ onClose, onSaveSuccess }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-lg p-6 bg-card border border-ink/20 rounded-lg shadow-2xl space-y-6">
+      <div className="relative w-full max-w-lg p-6 bg-card border border-ink/20 rounded-lg shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
         <button 
           onClick={onClose}
           className="absolute top-4 right-4 text-ink/40 hover:text-ink p-1.5 rounded hover:bg-ink/5 transition-colors"
@@ -70,7 +84,7 @@ export default function SettingsModal({ onClose, onSaveSuccess }) {
           </div>
           <div>
             <h3 className="font-serif text-xl font-bold text-ink">Vault Configuration & API Keys</h3>
-            <p className="font-mono text-xs text-ink/60">Configure NVIDIA Developer Platform & Supabase Credentials</p>
+            <p className="font-mono text-xs text-ink/60">Configure Live Backend API URL, NVIDIA & Supabase Credentials</p>
           </div>
         </div>
 
@@ -90,6 +104,22 @@ export default function SettingsModal({ onClose, onSaveSuccess }) {
         )}
 
         <form onSubmit={handleSave} className="space-y-5">
+          {/* Section 0: Live Backend Server API Base URL */}
+          <div className="space-y-2 pb-2 border-b border-ink/10">
+            <label className="block font-mono text-xs font-bold uppercase tracking-wider text-ledger flex items-center gap-1.5">
+              <Settings className="w-3.5 h-3.5" /> Backend Server API Base URL
+            </label>
+            <p className="text-xs font-sans text-ink/60">
+              Set your live deployed backend URL (e.g. <span className="font-mono text-ledger font-semibold">https://docvault-backend-cmqo.onrender.com/api</span>).
+            </p>
+            <input
+              type="text"
+              value={apiUrl}
+              onChange={(e) => setApiUrl(e.target.value)}
+              placeholder="https://docvault-backend-cmqo.onrender.com/api"
+              className="w-full px-4 py-2.5 bg-paper border border-ink/20 rounded font-mono text-xs text-ink placeholder-ink/40 focus:outline-none focus:border-ledger focus:ring-1 focus:ring-ledger"
+            />
+          </div>
           {/* Section 1: NVIDIA Developer Platform API Key */}
           <div className="space-y-2">
             <label className="block font-mono text-xs font-bold uppercase tracking-wider text-ledger flex items-center gap-1.5">

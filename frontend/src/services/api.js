@@ -1,16 +1,23 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
+const getApiBaseUrl = () => {
+  const customUrl = localStorage.getItem('vault_api_url');
+  if (customUrl && customUrl.trim()) {
+    return customUrl.trim();
+  }
+  return import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
+};
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Automatic Request Interceptor for User ID & Token
+// Automatic Request Interceptor for Dynamic Base URL, User ID & Token
 api.interceptors.request.use((config) => {
+  config.baseURL = getApiBaseUrl();
+
   const savedUser = localStorage.getItem('vault_user');
   if (savedUser) {
     try {
