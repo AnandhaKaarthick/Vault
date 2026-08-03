@@ -30,6 +30,6 @@ services:
       - key: NVIDIA_VISION_MODEL
         value: meta/llama-3.2-11b-vision-instruct
       - key: NVIDIA_TEXT_MODEL
-        value: google/gemma-2-2b-it
+        value: meta/llama-3.1-8b-instruct
       - key: ALLOWED_ORIGINS
         value: "*"

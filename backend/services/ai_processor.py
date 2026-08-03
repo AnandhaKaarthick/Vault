@@ -315,8 +315,17 @@ class AIProcessor:
 
         orig_ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'pdf'
 
+        # 0. EXPLICIT TAX DOCUMENT CHECK (Form 16, ITR, Income Tax, TDS, Tax Return)
+        if any(k in combined for k in ["tax", "itr", "income tax", "form 16", "form16", "tds", "tax return", "tax receipt", "w2", "1099"]):
+            category = "Tax"
+            vendor = "Income_Tax_Department" if any(k in combined for k in ["itr", "income tax", "tax department"]) else "Employer_Tax_Form"
+            doc_type = "Form16" if ("form 16" in combined or "form16" in combined) else "ITR_Acknowledgement" if "itr" in combined else "Tax_Document"
+            summary = f"Official {vendor} tax filing, Form 16, or ITR income tax return document."
+            tags = ["Tax", "Financial", "IncomeTax"]
+            suggested_fn = f"{vendor}_{doc_type}_{period}.{orig_ext}"
+
         # 1. Class Notes & Lecture Study Guides Check
-        if any(k in combined for k in ["note", "notes", "lecture", "study", "workbook", "lab manual", "chapter"]):
+        elif any(k in combined for k in ["note", "notes", "lecture", "study", "workbook", "lab manual", "chapter"]):
             category = "Academic & Marksheets"
             subj_name = subject_tag or "Study"
             vendor = subj_name
@@ -328,7 +337,7 @@ class AIProcessor:
             suggested_fn = f"{subj_name}_Lecture_Notes_{period}.{orig_ext}"
 
         # 2a. EXPLICIT HALL TICKET / ADMIT CARD CHECK (Includes NPTEL NOC Codes)
-        elif any(k in combined for k in ["hall ticket", "admit card", "examination admit card", "exam timetable", "exam center", "exam centre", "provisional admit card", "candidate admit card", "ticket"]) or fn_lower.startswith("noc"):
+        elif any(k in combined for k in ["hall ticket", "admit card", "examination admit card", "exam timetable", "exam center", "exam centre", "provisional admit card", "candidate admit card", "flight ticket", "bus ticket", "train ticket"]) or fn_lower.startswith("noc"):
             category = "Academic & Marksheets"
             if "nptel" in combined or fn_lower.startswith("noc"):
                 vendor = "NPTEL"

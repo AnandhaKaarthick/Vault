@@ -14,7 +14,7 @@ NVIDIA_API_BASE = os.getenv("NVIDIA_API_BASE", "https://integrate.api.nvidia.com
 
 # Models on NVIDIA Developer Platform
 NVIDIA_VISION_MODEL = os.getenv("NVIDIA_VISION_MODEL", "meta/llama-3.2-11b-vision-instruct")
-NVIDIA_TEXT_MODEL = os.getenv("NVIDIA_TEXT_MODEL", "google/gemma-2-2b-it")
+NVIDIA_TEXT_MODEL = os.getenv("NVIDIA_TEXT_MODEL", "meta/llama-3.1-8b-instruct")
 
 # Security Configuration
 SECURITY_PIN_HASH = os.getenv("SECURITY_PIN_HASH", "")
